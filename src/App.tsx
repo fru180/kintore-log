@@ -318,9 +318,16 @@ function RecordPage({
     const isUpdate = records.has(exercise.id);
     setBusyId(exercise.id);
     try {
-      await post("/api/records", { exerciseId: exercise.id, date, ...values });
+      const { record } = await post<{ record: Omit<WorkoutRecord, "name" | "kind"> }>("/api/records", {
+        exerciseId: exercise.id,
+        kind: exercise.kind,
+        date,
+        ...values,
+      });
       localStorage.setItem(`kintore-default-${exercise.id}`, JSON.stringify(values));
-      await load();
+      setRecords((current) =>
+        new Map(current).set(exercise.id, { ...record, name: exercise.name, kind: exercise.kind }),
+      );
       notify({ message: `${exercise.name}を${isUpdate ? "更新" : "記録"}しました`, kind: "success" });
     } catch (e) {
       notify({ message: e instanceof Error ? e.message : "保存できませんでした", kind: "error" });

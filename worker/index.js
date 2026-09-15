@@ -242,12 +242,11 @@ async function route(request, env) {
     const user = await requireUser(request, env);
     const body = await readJson(request);
     const exerciseId = Number(body.exerciseId);
-    if (!Number.isInteger(exerciseId) || !validDate(body.date))
+    const kind = body.kind;
+    if (!Number.isInteger(exerciseId) || !validDate(body.date) || !["strength", "cardio"].includes(kind))
       throw new ApiError("種目または日付が正しくありません");
-    const exercise = await env.DB.prepare("SELECT kind FROM exercises WHERE id = ?").bind(exerciseId).first();
-    if (!exercise) throw new ApiError("種目が見つかりません", 404);
     let values;
-    if (exercise.kind === "strength") {
+    if (kind === "strength") {
       if (
         !numberIn(body.weightKg, 0, 1000) ||
         !Number.isInteger(body.reps) ||
@@ -268,18 +267,22 @@ async function route(request, env) {
       }
       values = [null, null, null, body.distanceKm, body.durationMinutes];
     }
-    await env.DB.prepare(
+    const record = await env.DB.prepare(
       `INSERT INTO workout_records
        (user_id, exercise_id, workout_date, weight_kg, reps, sets, distance_km, duration_minutes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       SELECT ?, id, ?, ?, ?, ?, ?, ? FROM exercises WHERE id = ? AND kind = ?
        ON CONFLICT(user_id, exercise_id, workout_date) DO UPDATE SET
        weight_kg = excluded.weight_kg, reps = excluded.reps, sets = excluded.sets,
        distance_km = excluded.distance_km, duration_minutes = excluded.duration_minutes,
-       updated_at = datetime('now')`,
+       updated_at = datetime('now')
+       RETURNING id, exercise_id AS exerciseId, workout_date AS date,
+         weight_kg AS weightKg, reps, sets, distance_km AS distanceKm,
+         duration_minutes AS durationMinutes`,
     )
-      .bind(user.id, exerciseId, body.date, ...values)
-      .run();
-    return json({ ok: true });
+      .bind(user.id, body.date, ...values, exerciseId, kind)
+      .first();
+    if (!record) throw new ApiError("種目が見つかりません", 404);
+    return json({ record });
   }
 
   const recordMatch = path.match(/^\/api\/records\/(\d+)$/);
