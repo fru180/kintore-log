@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "kintore-log",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-09-15",
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+    },
+  },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kintore-log",
+      // `npx wrangler d1 create kintore-log` で発行されたIDに置き換える。
+      "database_id": "3cbd9763-5a50-4757-95ab-db13cc59edec",
+      "migrations_dir": "migrations",
+    },
+    {
+      "binding": "kintore_log",
+      "database_name": "kintore-log",
+      "database_id": "3cbd9763-5a50-4757-95ab-db13cc59edec",
+    },
+  ],
+}
