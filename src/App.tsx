@@ -100,9 +100,9 @@ function App() {
               <Settings size={18} />
             </button>
           ) : null}
-          <span>
+          <span className="account-name">
             <UserRound size={16} />
-            {user.accountName}
+            <span title={user.accountName}>{user.accountName}</span>
           </span>
           <button
             className="icon-button"

@@ -90,13 +90,20 @@ select:focus-visible {
   align-items: center;
   gap: 7px;
 }
-.account > span {
+.account-name {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
   color: #c9d0cc;
   font-size: 13px;
   margin: 0 6px;
+}
+.account-name > span {
+  overflow: hidden;
+  max-width: 180px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .icon-button {
   width: 38px;
@@ -647,7 +654,7 @@ select,
 }
 .modal-title h2 {
   margin: 5px 0 0;
-  font: 700 28px var(--title);
+  font: 700 24px var(--title);
 }
 .timer-ring {
   --progress: 0deg;
@@ -957,8 +964,11 @@ select,
   .topbar {
     padding: 0 14px;
   }
-  .account > span {
-    display: none;
+  .account-name {
+    margin: 0 2px;
+  }
+  .account-name > span {
+    max-width: 100px;
   }
   .exercise-row {
     min-height: 82px;
@@ -1002,6 +1012,12 @@ select,
 }
 
 @media (max-width: 540px) {
+  .account-name svg {
+    display: none;
+  }
+  .account-name > span {
+    max-width: 72px;
+  }
   .page-heading {
     align-items: flex-start;
     margin-bottom: 22px;
@@ -1092,6 +1108,12 @@ select,
   }
   .inline-edit input {
     flex-basis: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .account-name > span {
+    max-width: 50px;
   }
 }
 
