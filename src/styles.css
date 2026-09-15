@@ -278,6 +278,10 @@ select:focus-visible {
   border-radius: 7px;
   overflow: hidden;
 }
+.metric > div.invalid {
+  border-color: #ff6f61;
+  box-shadow: 0 0 0 1px rgba(255, 111, 97, 0.22);
+}
 .metric input {
   width: 100%;
   min-width: 48px;
@@ -647,8 +651,11 @@ select,
 }
 .timer-ring {
   --progress: 0deg;
-  width: min(260px, 72vw);
+  position: relative;
+  width: min(260px, 100%);
+  max-width: calc(100dvw - 76px);
   aspect-ratio: 1;
+  flex: 0 0 auto;
   display: grid;
   place-items: center;
   margin: 18px auto;
@@ -658,8 +665,7 @@ select,
 .timer-ring::before {
   content: "";
   position: absolute;
-  width: min(228px, calc(72vw - 32px));
-  aspect-ratio: 1;
+  inset: 16px;
   background: #121915;
   border-radius: 50%;
 }
@@ -684,7 +690,7 @@ select,
 }
 .timer-presets {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 7px;
 }
 .timer-presets button {
@@ -700,24 +706,6 @@ select,
   background: var(--lime);
   border-color: var(--lime);
   font-weight: 700;
-}
-.custom-duration {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 9px;
-  color: var(--muted);
-  font-size: 11px;
-}
-.custom-duration input {
-  width: 80px;
-  min-height: 38px;
-  margin-left: auto;
-  color: #fff;
-  background: #111814;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0 10px;
 }
 .timer-actions {
   display: grid;

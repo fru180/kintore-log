@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { api, del, patch, post } from "./api";
 import { monthLabel, shiftDay, shiftMonth, toLocalDate } from "./date";
+import { isDraftComplete, toDraftValue } from "./draft";
 import type { Draft, Exercise, StatPoint, User, WorkoutRecord } from "./types";
 
 type Tab = "record" | "charts" | "admin";
@@ -36,7 +37,7 @@ function App() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [tab, setTab] = useState<Tab>("record");
   const [timerOpen, setTimerOpen] = useState(false);
-  const [timerStatus, setTimerStatus] = useState({ running: false, remaining: 180 });
+  const [timerStatus, setTimerStatus] = useState({ running: false, elapsed: 0 });
   const [date, setDate] = useState(toLocalDate());
   const [notice, setNotice] = useState<Notice>(null);
 
@@ -140,15 +141,15 @@ function App() {
           onClick={() => setTimerOpen(true)}
           aria-label={
             timerStatus.running
-              ? `タイマー動作中、残り${Math.floor(timerStatus.remaining / 60)}分${timerStatus.remaining % 60}秒`
+              ? `タイマー動作中、経過${Math.floor(timerStatus.elapsed / 60)}分${timerStatus.elapsed % 60}秒`
               : "タイマーを開く"
           }
         >
           <TimerIcon />
           <span>
             {timerStatus.running
-              ? `${String(Math.floor(timerStatus.remaining / 60)).padStart(2, "0")}:${String(
-                  timerStatus.remaining % 60,
+              ? `${String(Math.floor(timerStatus.elapsed / 60)).padStart(2, "0")}:${String(
+                  timerStatus.elapsed % 60,
                 ).padStart(2, "0")}`
               : "タイマー"}
           </span>
@@ -303,17 +304,22 @@ function RecordPage({
   }, [load, notify]);
 
   const changeDraft = (id: number, key: keyof Draft, value: string) => {
-    const numeric = value === "" ? 0 : Number(value);
-    setDrafts((current) => ({ ...current, [id]: { ...(current[id] || defaultDraft), [key]: numeric } }));
+    setDrafts((current) => ({
+      ...current,
+      [id]: { ...(current[id] || defaultDraft), [key]: toDraftValue(value) },
+    }));
   };
 
   const saveRecord = async (exercise: Exercise) => {
     const draft = drafts[exercise.id] || defaultDraft;
+    if (!isDraftComplete(draft, exercise.kind)) return;
+
+    const values = Object.fromEntries(Object.entries(draft).map(([key, value]) => [key, Number(value)]));
     const isUpdate = records.has(exercise.id);
     setBusyId(exercise.id);
     try {
-      await post("/api/records", { exerciseId: exercise.id, date, ...draft });
-      localStorage.setItem(`kintore-default-${exercise.id}`, JSON.stringify(draft));
+      await post("/api/records", { exerciseId: exercise.id, date, ...values });
+      localStorage.setItem(`kintore-default-${exercise.id}`, JSON.stringify(values));
       await load();
       notify({ message: `${exercise.name}を${isUpdate ? "更新" : "記録"}しました`, kind: "success" });
     } catch (e) {
@@ -386,6 +392,7 @@ function RecordPage({
         {exercises.map((exercise) => {
           const draft = drafts[exercise.id] || defaultDraft;
           const record = records.get(exercise.id);
+          const draftComplete = isDraftComplete(draft, exercise.kind);
           return (
             <article className={`exercise-row ${record ? "saved" : ""}`} key={exercise.id}>
               <div className="exercise-main">
@@ -401,6 +408,7 @@ function RecordPage({
                         unit="kg"
                         value={draft.weightKg}
                         step="0.5"
+                        invalid={draft.weightKg === ""}
                         onChange={(v) => changeDraft(exercise.id, "weightKg", v)}
                       />
                       <span className="multiply">×</span>
@@ -409,6 +417,7 @@ function RecordPage({
                         unit="回"
                         value={draft.reps}
                         step="1"
+                        invalid={draft.reps === ""}
                         onChange={(v) => changeDraft(exercise.id, "reps", v)}
                       />
                       <span className="multiply">×</span>
@@ -417,6 +426,7 @@ function RecordPage({
                         unit="set"
                         value={draft.sets}
                         step="1"
+                        invalid={draft.sets === ""}
                         onChange={(v) => changeDraft(exercise.id, "sets", v)}
                       />
                     </>
@@ -427,6 +437,7 @@ function RecordPage({
                         unit="km"
                         value={draft.distanceKm}
                         step="0.1"
+                        invalid={draft.distanceKm === ""}
                         onChange={(v) => changeDraft(exercise.id, "distanceKm", v)}
                       />
                       <Metric
@@ -434,6 +445,7 @@ function RecordPage({
                         unit="分"
                         value={draft.durationMinutes}
                         step="1"
+                        invalid={draft.durationMinutes === ""}
                         onChange={(v) => changeDraft(exercise.id, "durationMinutes", v)}
                       />
                     </>
@@ -443,7 +455,7 @@ function RecordPage({
               <div className="row-actions">
                 <button
                   className="primary save-button"
-                  disabled={busyId === exercise.id}
+                  disabled={busyId === exercise.id || !draftComplete}
                   onClick={() => saveRecord(exercise)}
                   aria-label={
                     busyId === exercise.id
@@ -493,19 +505,29 @@ function Metric({
   unit,
   value,
   step,
+  invalid,
   onChange,
 }: {
   label: string;
   unit: string;
-  value: number;
+  value: number | "";
   step: string;
+  invalid: boolean;
   onChange: (value: string) => void;
 }) {
   return (
     <label className="metric">
       <span>{label}</span>
-      <div>
-        <input type="number" min="0" step={step} value={value} onChange={(e) => onChange(e.target.value)} />
+      <div className={invalid ? "invalid" : ""}>
+        <input
+          type="number"
+          min="0"
+          step={step}
+          value={value}
+          required
+          aria-invalid={invalid}
+          onChange={(e) => onChange(e.target.value)}
+        />
         <small>{unit}</small>
       </div>
     </label>
@@ -754,72 +776,106 @@ function TimerModal({
   open: boolean;
   notify: (notice: Notice) => void;
   onClose: () => void;
-  onStateChange: (state: { running: boolean; remaining: number }) => void;
+  onStateChange: (state: { running: boolean; elapsed: number }) => void;
 }) {
-  const [minutes, setMinutes] = useState(3);
-  const [alarmInterval, setAlarmInterval] = useState(1);
-  const [remaining, setRemaining] = useState(180);
+  const [duration, setDuration] = useState<3 | 10 | null>(3);
+  const [elapsed, setElapsed] = useState(0);
   const [running, setRunning] = useState(false);
-  const targetRef = useRef(0);
-  const nextAlarmRef = useRef(120);
+  const startedAtRef = useRef(0);
+  const elapsedAtStartRef = useRef(0);
+  const nextAlarmRef = useRef(60);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   const beep = useCallback(() => {
-    const context = new AudioContext();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.frequency.value = 780;
-    gain.gain.setValueAtTime(0.18, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.45);
-    oscillator.connect(gain).connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + 0.45);
+    const AudioContextClass =
+      window.AudioContext ??
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const context = audioContextRef.current ?? new AudioContextClass();
+    audioContextRef.current = context;
+    const play = () => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.frequency.value = 880;
+      gain.gain.setValueAtTime(0.24, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.5);
+      oscillator.connect(gain).connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.5);
+    };
+
+    if (context.state === "suspended") {
+      void context
+        .resume()
+        .then(play)
+        .catch(() => undefined);
+    } else {
+      play();
+    }
   }, []);
+
+  useEffect(
+    () => () => {
+      void audioContextRef.current?.close();
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!running) return;
     const update = () => {
-      const next = Math.max(0, Math.ceil((targetRef.current - Date.now()) / 1000));
-      setRemaining(next);
-      const elapsed = minutes * 60 - next;
-      if (elapsed >= nextAlarmRef.current && next > 0) {
-        nextAlarmRef.current += alarmInterval * 60;
-        beep();
-      }
-      if (next === 0) {
+      const measured = elapsedAtStartRef.current + Math.floor((Date.now() - startedAtRef.current) / 1000);
+      const limit = duration === null ? Number.POSITIVE_INFINITY : duration * 60;
+      const next = Math.min(measured, limit);
+      setElapsed(next);
+
+      if (next >= limit) {
         setRunning(false);
         beep();
         notify({ message: "タイマーが終了しました", kind: "success" });
+      } else if (next >= nextAlarmRef.current) {
+        nextAlarmRef.current = (Math.floor(next / 60) + 1) * 60;
+        beep();
       }
     };
     update();
     const id = window.setInterval(update, 250);
     return () => window.clearInterval(id);
-  }, [running, beep, notify, minutes, alarmInterval]);
+  }, [running, beep, notify, duration]);
 
   useEffect(() => {
-    onStateChange({ running, remaining });
-  }, [running, remaining, onStateChange]);
+    onStateChange({ running, elapsed });
+  }, [running, elapsed, onStateChange]);
 
   const start = () => {
-    if (!remaining) setRemaining(minutes * 60);
-    const seconds = remaining || minutes * 60;
-    targetRef.current = Date.now() + seconds * 1000;
-    nextAlarmRef.current = alarmInterval * 60;
+    const limit = duration === null ? Number.POSITIVE_INFINITY : duration * 60;
+    const startFrom = elapsed >= limit ? 0 : elapsed;
+    if (startFrom !== elapsed) setElapsed(0);
+    elapsedAtStartRef.current = startFrom;
+    startedAtRef.current = Date.now();
+    nextAlarmRef.current = (Math.floor(startFrom / 60) + 1) * 60;
+    // iOS Safari requires audio to be created/resumed directly from a user gesture.
     beep();
     setRunning(true);
   };
+  const pause = () => {
+    const measured = elapsedAtStartRef.current + Math.floor((Date.now() - startedAtRef.current) / 1000);
+    const limit = duration === null ? Number.POSITIVE_INFINITY : duration * 60;
+    setElapsed(Math.min(measured, limit));
+    setRunning(false);
+  };
   const reset = () => {
     setRunning(false);
-    setRemaining(minutes * 60);
+    setElapsed(0);
   };
-  const setDuration = (value: number) => {
-    const safe = Math.max(1, Math.min(120, value));
-    setMinutes(safe);
-    if (!running) setRemaining(safe * 60);
+  const selectDuration = (value: 3 | 10 | null) => {
+    setDuration(value);
+    setElapsed(0);
   };
-  const mm = String(Math.floor(remaining / 60)).padStart(2, "0"),
-    ss = String(remaining % 60).padStart(2, "0");
-  const progress = 1 - remaining / Math.max(minutes * 60, 1);
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0"),
+    ss = String(elapsed % 60).padStart(2, "0");
+  const progress = duration === null ? (elapsed % 60) / 60 : elapsed / (duration * 60);
 
   if (!open) return null;
 
@@ -845,57 +901,23 @@ function TimerModal({
             <b>
               {mm}:{ss}
             </b>
-            <span>{alarmInterval}分ごとにサウンド</span>
+            <span>1分ごとにサウンド</span>
           </div>
         </div>
         <div className="timer-presets">
-          {[1, 2, 3, 5].map((value) => (
+          {([3, 10, null] as const).map((value) => (
             <button
-              key={value}
-              className={minutes === value ? "active" : ""}
-              onClick={() => setDuration(value)}
+              key={value ?? "unlimited"}
+              className={duration === value ? "active" : ""}
+              onClick={() => selectDuration(value)}
               disabled={running}
             >
-              {value}分
+              {value === null ? "無制限" : `${value}分`}
             </button>
           ))}
         </div>
-        <label className="custom-duration">
-          <span>カスタム</span>
-          <input
-            type="number"
-            min="1"
-            max="120"
-            value={minutes}
-            disabled={running}
-            onChange={(e) => setDuration(Number(e.target.value))}
-          />
-          <span>分</span>
-        </label>
-        <label className="custom-duration">
-          <span>通知間隔</span>
-          <input
-            type="number"
-            min="1"
-            max="120"
-            value={alarmInterval}
-            disabled={running}
-            onChange={(e) => setAlarmInterval(Math.max(1, Number(e.target.value)))}
-          />
-          <span>分おき</span>
-        </label>
         <div className="timer-actions">
-          <button
-            className="primary big"
-            onClick={
-              running
-                ? () => {
-                    setRemaining(Math.max(0, Math.ceil((targetRef.current - Date.now()) / 1000)));
-                    setRunning(false);
-                  }
-                : start
-            }
-          >
+          <button className="primary big" onClick={running ? pause : start}>
             {running ? <Pause /> : <Play />}
             {running ? "一時停止" : "スタート"}
           </button>

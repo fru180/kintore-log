@@ -13,11 +13,11 @@ export type WorkoutRecord = {
   durationMinutes: number | null;
 };
 export type Draft = {
-  weightKg: number;
-  reps: number;
-  sets: number;
-  distanceKm: number;
-  durationMinutes: number;
+  weightKg: number | "";
+  reps: number | "";
+  sets: number | "";
+  distanceKm: number | "";
+  durationMinutes: number | "";
 };
 export type StatPoint = {
   date: string;
