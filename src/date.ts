@@ -22,3 +22,8 @@ export const shiftMonth = (value: string, amount: number) => {
   const date = new Date(year, month - 1 + amount, 1);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 };
+
+export const shiftDay = (value: string, amount: number) => {
+  const [year, month, day] = value.split("-").map(Number);
+  return toLocalDate(new Date(year, month - 1, day + amount));
+};

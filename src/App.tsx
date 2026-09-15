@@ -1,16 +1,18 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Activity,
   BarChart3,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Dumbbell,
   LogOut,
   Pause,
   Pencil,
   Play,
   Plus,
+  RefreshCw,
   RotateCcw,
   Save,
   Settings,
@@ -21,10 +23,10 @@ import {
   X,
 } from "lucide-react";
 import { api, del, patch, post } from "./api";
-import { displayDate, monthLabel, shiftMonth, toLocalDate } from "./date";
+import { monthLabel, shiftDay, shiftMonth, toLocalDate } from "./date";
 import type { Draft, Exercise, StatPoint, User, WorkoutRecord } from "./types";
 
-type Tab = "record" | "calendar" | "charts" | "admin";
+type Tab = "record" | "charts" | "admin";
 type Notice = { message: string; kind: "success" | "error" } | null;
 
 const defaultDraft: Draft = { weightKg: 0, reps: 10, sets: 3, distanceKm: 0, durationMinutes: 30 };
@@ -34,6 +36,7 @@ function App() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [tab, setTab] = useState<Tab>("record");
   const [timerOpen, setTimerOpen] = useState(false);
+  const [timerStatus, setTimerStatus] = useState({ running: false, remaining: 180 });
   const [date, setDate] = useState(toLocalDate());
   const [notice, setNotice] = useState<Notice>(null);
 
@@ -70,12 +73,7 @@ function App() {
   }
   if (!user) return <AuthScreen onLogin={setUser} />;
 
-  const navigateToDate = (selected: string) => {
-    setDate(selected);
-    setTab("record");
-  };
-
-  const navItems: { id: Tab; label: string; icon: typeof Activity }[] = [
+  const navItems: { id: Tab; label: string; icon: typeof Dumbbell }[] = [
     { id: "record", label: "記録", icon: Dumbbell },
     { id: "charts", label: "推移", icon: BarChart3 },
   ];
@@ -89,17 +87,9 @@ function App() {
           </span>
           <span>
             <b>筋トレログ</b>
-            <small>KEEP SHOWING UP.</small>
           </span>
         </button>
         <div className="account">
-          <button
-            className={`icon-button ${tab === "calendar" ? "selected-icon" : ""}`}
-            aria-label="カレンダー"
-            onClick={() => setTab("calendar")}
-          >
-            <CalendarDays size={18} />
-          </button>
           {user.isAdmin ? (
             <button
               className={`icon-button ${tab === "admin" ? "selected-icon" : ""}`}
@@ -130,7 +120,6 @@ function App() {
         {tab === "record" && (
           <RecordPage date={date} setDate={setDate} exercises={exercises} notify={setNotice} />
         )}
-        {tab === "calendar" && <CalendarPage onEdit={navigateToDate} notify={setNotice} />}
         {tab === "charts" && <ChartsPage exercises={exercises} notify={setNotice} />}
         {tab === "admin" && user.isAdmin ? (
           <AdminPage exercises={exercises} reload={loadExercises} notify={setNotice} />
@@ -145,13 +134,32 @@ function App() {
           </button>
         ))}
       </nav>
-      {tab === "charts" && (
-        <button className="timer-fab" onClick={() => setTimerOpen(true)}>
+      {(tab === "record" || tab === "charts") && (
+        <button
+          className={`timer-fab ${timerStatus.running ? "running" : ""}`}
+          onClick={() => setTimerOpen(true)}
+          aria-label={
+            timerStatus.running
+              ? `タイマー動作中、残り${Math.floor(timerStatus.remaining / 60)}分${timerStatus.remaining % 60}秒`
+              : "タイマーを開く"
+          }
+        >
           <TimerIcon />
-          <span>タイマー</span>
+          <span>
+            {timerStatus.running
+              ? `${String(Math.floor(timerStatus.remaining / 60)).padStart(2, "0")}:${String(
+                  timerStatus.remaining % 60,
+                ).padStart(2, "0")}`
+              : "タイマー"}
+          </span>
         </button>
       )}
-      {timerOpen && <TimerModal notify={setNotice} onClose={() => setTimerOpen(false)} />}
+      <TimerModal
+        open={timerOpen}
+        notify={setNotice}
+        onClose={() => setTimerOpen(false)}
+        onStateChange={setTimerStatus}
+      />
       {notice && (
         <div className={`toast ${notice.kind}`} role="status">
           {notice.message}
@@ -190,23 +198,6 @@ function AuthScreen({ onLogin }: { onLogin: (user: User) => void }) {
 
   return (
     <main className="auth-screen">
-      <section className="auth-hero">
-        <span className="eyebrow">TRAIN • TRACK • GROW</span>
-        <h1>
-          積み上げた分だけ、
-          <br />
-          <em>強くなる。</em>
-        </h1>
-        <p>毎日のトレーニングを、迷わずすばやく記録。</p>
-        <div className="hero-stat">
-          <b>1%</b>
-          <span>
-            BETTER
-            <br />
-            EVERY DAY
-          </span>
-        </div>
-      </section>
       <section className="auth-card">
         <div className="brand auth-brand">
           <span className="brand-mark">
@@ -260,7 +251,6 @@ function AuthScreen({ onLogin }: { onLogin: (user: User) => void }) {
             {busy ? "送信中…" : mode === "login" ? "ログイン" : "アカウントを作成"}
           </button>
         </form>
-        <p className="auth-note">記録はあなたのアカウントに安全に保存されます。</p>
       </section>
     </main>
   );
@@ -281,6 +271,7 @@ function RecordPage({
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
   const [bodyWeight, setBodyWeight] = useState("");
   const [busyId, setBusyId] = useState<number | string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const load = useCallback(async () => {
     const data = await api<{ records: WorkoutRecord[]; bodyWeight: number | null }>(
@@ -318,24 +309,18 @@ function RecordPage({
 
   const saveRecord = async (exercise: Exercise) => {
     const draft = drafts[exercise.id] || defaultDraft;
+    const isUpdate = records.has(exercise.id);
     setBusyId(exercise.id);
     try {
       await post("/api/records", { exerciseId: exercise.id, date, ...draft });
       localStorage.setItem(`kintore-default-${exercise.id}`, JSON.stringify(draft));
       await load();
-      notify({ message: `${exercise.name}を記録しました`, kind: "success" });
+      notify({ message: `${exercise.name}を${isUpdate ? "更新" : "記録"}しました`, kind: "success" });
     } catch (e) {
       notify({ message: e instanceof Error ? e.message : "保存できませんでした", kind: "error" });
     } finally {
       setBusyId(null);
     }
-  };
-
-  const deleteRecord = async (record: WorkoutRecord) => {
-    if (!window.confirm(`${record.name}の記録を削除しますか？`)) return;
-    await del(`/api/records/${record.id}`);
-    await load();
-    notify({ message: "記録を削除しました", kind: "success" });
   };
 
   const saveBodyWeight = async () => {
@@ -357,27 +342,52 @@ function RecordPage({
 
   return (
     <section>
-      <div className="page-heading record-heading">
-        <div>
-          <span className="eyebrow">TODAY'S WORKOUT</span>
-          <h1>トレーニング記録</h1>
-          <p>
-            {displayDate(date)} · {records.size ? `${records.size}種目を記録済み` : "今日も一歩ずつ"}
-          </p>
+      <div className="record-toolbar">
+        <div className="date-navigator">
+          <button className="icon-button" onClick={() => setDate(shiftDay(date, -1))} aria-label="前の日">
+            <ChevronLeft />
+          </button>
+          <label className="date-picker">
+            <CalendarDays size={18} />
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => {
+                if (e.target.value) setDate(e.target.value);
+              }}
+            />
+          </label>
+          <button className="icon-button" onClick={() => setDate(shiftDay(date, 1))} aria-label="次の日">
+            <ChevronRight />
+          </button>
         </div>
-        <label className="date-picker">
-          <CalendarDays size={18} />
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </label>
+        <button
+          className="calendar-toggle"
+          onClick={() => setCalendarOpen((open) => !open)}
+          aria-expanded={calendarOpen}
+        >
+          <CalendarDays size={16} />
+          カレンダー
+          {calendarOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
       </div>
 
+      {calendarOpen && (
+        <CalendarPage
+          currentDate={date}
+          onEdit={(selected) => {
+            setDate(selected);
+          }}
+          notify={notify}
+        />
+      )}
+
       <div className="exercise-list">
-        {exercises.map((exercise, index) => {
+        {exercises.map((exercise) => {
           const draft = drafts[exercise.id] || defaultDraft;
           const record = records.get(exercise.id);
           return (
             <article className={`exercise-row ${record ? "saved" : ""}`} key={exercise.id}>
-              <div className="exercise-index">{String(index + 1).padStart(2, "0")}</div>
               <div className="exercise-main">
                 <div className="exercise-title">
                   <h2>{exercise.name}</h2>
@@ -432,22 +442,18 @@ function RecordPage({
               </div>
               <div className="row-actions">
                 <button
-                  className={record ? "secondary save-button" : "primary save-button"}
+                  className="primary save-button"
                   disabled={busyId === exercise.id}
                   onClick={() => saveRecord(exercise)}
+                  aria-label={
+                    busyId === exercise.id
+                      ? `${exercise.name}を保存中`
+                      : `${exercise.name}を${record ? "更新" : "記録"}`
+                  }
+                  title={record ? "更新" : "記録"}
                 >
-                  {record ? <Pencil size={17} /> : <Plus size={18} />}
-                  {busyId === exercise.id ? "保存中" : record ? "更新" : "記録"}
+                  {record ? <RefreshCw size={17} /> : <Plus size={18} />}
                 </button>
-                {record && (
-                  <button
-                    className="icon-button danger"
-                    aria-label={`${exercise.name}を削除`}
-                    onClick={() => deleteRecord(record)}
-                  >
-                    <Trash2 size={17} />
-                  </button>
-                )}
               </div>
             </article>
           );
@@ -459,9 +465,7 @@ function RecordPage({
           <Weight />
         </div>
         <div>
-          <span className="eyebrow">BODY WEIGHT</span>
           <h2>体重</h2>
-          <p>からだの変化も一緒に記録</p>
         </div>
         <label>
           <input
@@ -509,32 +513,26 @@ function Metric({
 }
 
 function CalendarPage({
+  currentDate,
   onEdit,
   notify,
 }: {
+  currentDate: string;
   onEdit: (date: string) => void;
   notify: (notice: Notice) => void;
 }) {
-  const [month, setMonth] = useState(toLocalDate().slice(0, 7));
+  const [month, setMonth] = useState(currentDate.slice(0, 7));
   const [days, setDays] = useState<Record<string, number>>({});
-  const [selected, setSelected] = useState(toLocalDate());
-  const [records, setRecords] = useState<WorkoutRecord[]>([]);
-  const [bodyWeight, setBodyWeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    setMonth(currentDate.slice(0, 7));
+  }, [currentDate]);
 
   useEffect(() => {
     api<{ days: { date: string; count: number }[] }>(`/api/calendar?month=${month}`)
       .then((data) => setDays(Object.fromEntries(data.days.map((day) => [day.date, day.count]))))
       .catch((e) => notify({ message: e.message, kind: "error" }));
   }, [month, notify]);
-  useEffect(() => {
-    api<{ records: WorkoutRecord[]; bodyWeight: number | null }>(`/api/records?date=${selected}`)
-      .then((data) => {
-        setRecords(data.records);
-        setBodyWeight(data.bodyWeight);
-      })
-      .catch((e) => notify({ message: e.message, kind: "error" }));
-  }, [selected, notify]);
-
   const cells = useMemo(() => {
     const [year, monthNumber] = month.split("-").map(Number);
     const first = new Date(year, monthNumber - 1, 1);
@@ -543,14 +541,7 @@ function CalendarPage({
   }, [month]);
 
   return (
-    <section>
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">WORKOUT HISTORY</span>
-          <h1>トレーニング履歴</h1>
-          <p>続けてきた日々を振り返る</p>
-        </div>
-      </div>
+    <section className="inline-calendar">
       <div className="calendar-layout">
         <article className="panel calendar-panel">
           <div className="month-nav">
@@ -574,8 +565,8 @@ function CalendarPage({
               return (
                 <button
                   key={date}
-                  className={`${days[date] ? "worked" : ""} ${selected === date ? "selected" : ""}`}
-                  onClick={() => setSelected(date)}
+                  className={`${days[date] ? "worked" : ""} ${currentDate === date ? "selected" : ""}`}
+                  onClick={() => onEdit(date)}
                 >
                   <b>{day}</b>
                   {days[date] ? <i>{days[date]}</i> : null}
@@ -588,51 +579,7 @@ function CalendarPage({
               <i className="legend-dot" />
               トレーニング実施日
             </span>
-            <span>{Object.keys(days).length} DAYS</span>
           </div>
-        </article>
-        <article className="panel day-detail">
-          <div className="detail-heading">
-            <div>
-              <span className="eyebrow">SELECTED DAY</span>
-              <h2>{displayDate(selected)}</h2>
-            </div>
-            <button className="secondary" onClick={() => onEdit(selected)}>
-              <Pencil size={16} />
-              編集
-            </button>
-          </div>
-          {records.length ? (
-            <ul>
-              {records.map((record) => (
-                <li key={record.id}>
-                  <span className="list-icon">
-                    <Dumbbell size={17} />
-                  </span>
-                  <div>
-                    <b>{record.name}</b>
-                    <small>
-                      {record.kind === "strength"
-                        ? `${record.weightKg}kg × ${record.reps}回 × ${record.sets}set`
-                        : `${record.distanceKm}km · ${record.durationMinutes}分`}
-                    </small>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="empty-state">
-              <Activity />
-              <p>この日の記録はありません</p>
-            </div>
-          )}
-          {bodyWeight !== null && (
-            <div className="body-summary">
-              <Weight size={18} />
-              <span>体重</span>
-              <b>{bodyWeight} kg</b>
-            </div>
-          )}
         </article>
       </div>
     </section>
@@ -644,19 +591,23 @@ function ChartsPage({ exercises, notify }: { exercises: Exercise[]; notify: (not
   const [exerciseStats, setExerciseStats] = useState<StatPoint[]>([]);
   const [bodyWeights, setBodyWeights] = useState<StatPoint[]>([]);
   const selectedExercise = exercises.find((exercise) => exercise.id === exerciseId);
+  const periodEnd = toLocalDate();
+  const periodStart = shiftDay(periodEnd, -89);
 
   useEffect(() => {
     if (!exerciseId && exercises.length) setExerciseId(exercises[0].id);
   }, [exerciseId, exercises]);
   useEffect(() => {
     if (!exerciseId) return;
-    api<{ exercise: StatPoint[]; bodyWeights: StatPoint[] }>(`/api/stats?exerciseId=${exerciseId}`)
+    api<{ exercise: StatPoint[]; bodyWeights: StatPoint[] }>(
+      `/api/stats?exerciseId=${exerciseId}&from=${periodStart}&to=${periodEnd}`,
+    )
       .then((data) => {
         setExerciseStats(data.exercise);
         setBodyWeights(data.bodyWeights);
       })
       .catch((e) => notify({ message: e.message, kind: "error" }));
-  }, [exerciseId, notify]);
+  }, [exerciseId, notify, periodStart, periodEnd]);
 
   const exerciseValues = exerciseStats.map((point) =>
     selectedExercise?.kind === "cardio" ? point.distanceKm || 0 : point.weightKg || 0,
@@ -664,13 +615,6 @@ function ChartsPage({ exercises, notify }: { exercises: Exercise[]; notify: (not
   const weightValues = bodyWeights.map((point) => point.weightKg || 0);
   return (
     <section>
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">YOUR PROGRESS</span>
-          <h1>成長の記録</h1>
-          <p>小さな積み重ねを、目に見える力へ</p>
-        </div>
-      </div>
       <div className="chart-grid">
         <article className="panel chart-card">
           <div className="chart-title">
@@ -679,7 +623,6 @@ function ChartsPage({ exercises, notify }: { exercises: Exercise[]; notify: (not
                 <Dumbbell />
               </span>
               <div>
-                <span className="eyebrow">EXERCISE</span>
                 <h2>種目別の推移</h2>
               </div>
             </div>
@@ -705,7 +648,6 @@ function ChartsPage({ exercises, notify }: { exercises: Exercise[]; notify: (not
                 <Weight />
               </span>
               <div>
-                <span className="eyebrow">BODY WEIGHT</span>
                 <h2>体重の推移</h2>
               </div>
             </div>
@@ -803,7 +745,17 @@ function LineChart({
   );
 }
 
-function TimerModal({ notify, onClose }: { notify: (notice: Notice) => void; onClose: () => void }) {
+function TimerModal({
+  open,
+  notify,
+  onClose,
+  onStateChange,
+}: {
+  open: boolean;
+  notify: (notice: Notice) => void;
+  onClose: () => void;
+  onStateChange: (state: { running: boolean; remaining: number }) => void;
+}) {
   const [minutes, setMinutes] = useState(3);
   const [alarmInterval, setAlarmInterval] = useState(1);
   const [remaining, setRemaining] = useState(180);
@@ -844,6 +796,10 @@ function TimerModal({ notify, onClose }: { notify: (notice: Notice) => void; onC
     return () => window.clearInterval(id);
   }, [running, beep, notify, minutes, alarmInterval]);
 
+  useEffect(() => {
+    onStateChange({ running, remaining });
+  }, [running, remaining, onStateChange]);
+
   const start = () => {
     if (!remaining) setRemaining(minutes * 60);
     const seconds = remaining || minutes * 60;
@@ -865,6 +821,8 @@ function TimerModal({ notify, onClose }: { notify: (notice: Notice) => void; onC
     ss = String(remaining % 60).padStart(2, "0");
   const progress = 1 - remaining / Math.max(minutes * 60, 1);
 
+  if (!open) return null;
+
   return (
     <div
       className="modal-backdrop"
@@ -876,7 +834,6 @@ function TimerModal({ notify, onClose }: { notify: (notice: Notice) => void; onC
       <article className="panel timer-card" role="dialog" aria-modal="true" aria-labelledby="timer-title">
         <div className="modal-title">
           <div>
-            <span className="eyebrow">REST TIMER</span>
             <h2 id="timer-title">インターバルタイマー</h2>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="閉じる">
@@ -885,7 +842,6 @@ function TimerModal({ notify, onClose }: { notify: (notice: Notice) => void; onC
         </div>
         <div className="timer-ring" style={{ "--progress": `${progress * 360}deg` } as React.CSSProperties}>
           <div>
-            <small>{running ? "RUNNING" : remaining === 0 ? "FINISHED" : "READY"}</small>
             <b>
               {mm}:{ss}
             </b>
@@ -1013,9 +969,7 @@ function AdminPage({
     <section>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">ADMINISTRATION</span>
           <h1>種目の管理</h1>
-          <p>種目の追加・編集・並び替え</p>
         </div>
       </div>
       <div className="admin-layout">
@@ -1048,7 +1002,6 @@ function AdminPage({
         <article className="panel admin-list">
           <div className="admin-list-head">
             <h2>登録済みの種目</h2>
-            <span>{exercises.length} ITEMS</span>
           </div>
           <ol>
             {exercises.map((exercise, index) => (

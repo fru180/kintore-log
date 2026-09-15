@@ -315,22 +315,31 @@ async function route(request, env) {
   if (path === "/api/stats" && method === "GET") {
     const user = await requireUser(request, env);
     const exerciseId = Number(url.searchParams.get("exerciseId"));
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    if (!validDate(from) || !validDate(to) || from > to) {
+      throw new ApiError("表示期間が正しくありません");
+    }
     let exercise = [];
     if (Number.isInteger(exerciseId) && exerciseId > 0) {
       const result = await env.DB.prepare(
         `SELECT workout_date AS date, weight_kg AS weightKg, reps, sets,
           distance_km AS distanceKm, duration_minutes AS durationMinutes
-         FROM workout_records WHERE user_id = ? AND exercise_id = ?
+         FROM workout_records
+         WHERE user_id = ? AND exercise_id = ? AND workout_date BETWEEN ? AND ?
          ORDER BY workout_date`,
       )
-        .bind(user.id, exerciseId)
+        .bind(user.id, exerciseId, from, to)
         .all();
       exercise = result.results;
     }
     const weights = await env.DB.prepare(
-      "SELECT measured_date AS date, weight_kg AS weightKg FROM body_weights WHERE user_id = ? ORDER BY measured_date",
+      `SELECT measured_date AS date, weight_kg AS weightKg
+       FROM body_weights
+       WHERE user_id = ? AND measured_date BETWEEN ? AND ?
+       ORDER BY measured_date`,
     )
-      .bind(user.id)
+      .bind(user.id, from, to)
       .all();
     return json({ exercise, bodyWeights: weights.results });
   }
