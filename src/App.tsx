@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import {
   BarChart3,
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -12,9 +13,7 @@ import {
   Pencil,
   Play,
   Plus,
-  RefreshCw,
   RotateCcw,
-  Save,
   Settings,
   Timer as TimerIcon,
   Trash2,
@@ -492,7 +491,7 @@ function RecordPage({
                   }
                   title={record ? "更新" : "記録"}
                 >
-                  {record ? <RefreshCw size={17} /> : <Plus size={18} />}
+                  <Check size={18} />
                 </button>
                 {record && (
                   <button
@@ -534,9 +533,14 @@ function RecordPage({
           />
           <span>kg</span>
         </label>
-        <button className="primary" disabled={busyId === "weight"} onClick={saveBodyWeight}>
-          <Save size={17} />
-          保存
+        <button
+          className="primary save-button"
+          disabled={busyId === "weight"}
+          onClick={saveBodyWeight}
+          aria-label="体重を記録"
+          title="記録"
+        >
+          <Check size={18} />
         </button>
       </article>
     </section>

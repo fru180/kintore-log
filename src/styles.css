@@ -433,6 +433,10 @@ select:focus-visible {
   color: var(--muted);
   font-size: 12px;
 }
+.weight-card .save-button {
+  width: 50px;
+  min-height: 50px;
+}
 
 .panel {
   background: var(--panel);
@@ -1101,17 +1105,20 @@ select,
     margin-inline: -1px;
   }
   .weight-card {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 8px;
     padding: 18px;
   }
   .weight-card > label {
-    grid-column: 1 / -1;
+    grid-column: 1 / 3;
+    grid-row: 2;
   }
   .weight-card input {
     width: 100%;
   }
   .weight-card .primary {
-    grid-column: 1 / -1;
+    grid-column: 3;
+    grid-row: 2;
   }
   .calendar-panel,
   .chart-card {
