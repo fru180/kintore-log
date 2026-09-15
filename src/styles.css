@@ -285,6 +285,9 @@ select:focus-visible {
   border-radius: 7px;
   overflow: hidden;
 }
+.metric > div:focus-within {
+  border-color: var(--lime);
+}
 .metric > div.invalid {
   border-color: #ff6f61;
   box-shadow: 0 0 0 1px rgba(255, 111, 97, 0.22);
@@ -297,6 +300,9 @@ select:focus-visible {
   background: transparent;
   border: 0;
   font: 700 16px var(--title);
+}
+.metric input:focus-visible {
+  outline: none;
 }
 .metric small {
   padding-right: 7px;
@@ -311,6 +317,7 @@ select:focus-visible {
 }
 .row-actions {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 7px;
 }
@@ -346,9 +353,21 @@ select:focus-visible {
   opacity: 0.55;
   cursor: wait;
 }
-.save-button {
+.save-button,
+.cancel-button {
   width: 40px;
   padding: 0;
+}
+.cancel-button {
+  color: #16110f;
+  background: var(--orange);
+  border-color: var(--orange);
+  box-shadow: 0 5px 18px rgba(255, 129, 93, 0.14);
+}
+.cancel-button:hover {
+  color: #16110f;
+  border-color: #ffab91;
+  background: #ffab91;
 }
 .wide {
   width: 100%;
@@ -594,6 +613,41 @@ select,
   stroke: #303a34;
   stroke-width: 1;
   stroke-dasharray: 3 6;
+}
+.chart-y-label {
+  fill: var(--muted);
+  font-size: 10px;
+  text-anchor: end;
+  dominant-baseline: middle;
+}
+.chart-point {
+  cursor: pointer;
+  outline: none;
+}
+.chart-point-hitbox {
+  fill: transparent;
+}
+.chart-point:focus-visible circle:last-child {
+  filter: drop-shadow(0 0 5px currentColor);
+}
+.chart-tooltip {
+  pointer-events: none;
+}
+.chart-tooltip rect {
+  fill: #0a0f0c;
+  stroke: #435048;
+  stroke-width: 1;
+}
+.chart-tooltip text {
+  text-anchor: middle;
+}
+.chart-tooltip-value {
+  font-size: 13px;
+  font-weight: 800;
+}
+.chart-tooltip-date {
+  fill: #a8b2ac;
+  font-size: 9px;
 }
 .chart-axis {
   display: flex;
@@ -993,7 +1047,8 @@ select,
     grid-row: 1;
     justify-content: center;
   }
-  .save-button {
+  .save-button,
+  .cancel-button {
     width: 38px;
     padding: 0;
   }

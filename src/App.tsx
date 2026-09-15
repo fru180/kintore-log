@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { api, del, patch, post } from "./api";
 import { monthLabel, shiftDay, shiftMonth, toLocalDate } from "./date";
-import { isDraftComplete, toDraftValue } from "./draft";
+import { isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
 import type { Draft, Exercise, StatPoint, User, WorkoutRecord } from "./types";
 
 type Tab = "record" | "charts" | "admin";
@@ -314,8 +314,11 @@ function RecordPage({
     const draft = drafts[exercise.id] || defaultDraft;
     if (!isDraftComplete(draft, exercise.kind)) return;
 
+    const currentRecord = records.get(exercise.id);
+    if (currentRecord && !isDraftChanged(draft, currentRecord, exercise.kind)) return;
+
     const values = Object.fromEntries(Object.entries(draft).map(([key, value]) => [key, Number(value)]));
-    const isUpdate = records.has(exercise.id);
+    const isUpdate = currentRecord !== undefined;
     setBusyId(exercise.id);
     try {
       const { record } = await post<{ record: Omit<WorkoutRecord, "name" | "kind"> }>("/api/records", {
@@ -331,6 +334,23 @@ function RecordPage({
       notify({ message: `${exercise.name}を${isUpdate ? "更新" : "記録"}しました`, kind: "success" });
     } catch (e) {
       notify({ message: e instanceof Error ? e.message : "保存できませんでした", kind: "error" });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const cancelRecord = async (exercise: Exercise, record: WorkoutRecord) => {
+    setBusyId(exercise.id);
+    try {
+      await del(`/api/records/${record.id}`);
+      setRecords((current) => {
+        const next = new Map(current);
+        next.delete(exercise.id);
+        return next;
+      });
+      notify({ message: `${exercise.name}の記録を取り消しました`, kind: "success" });
+    } catch (e) {
+      notify({ message: e instanceof Error ? e.message : "取り消しできませんでした", kind: "error" });
     } finally {
       setBusyId(null);
     }
@@ -400,6 +420,7 @@ function RecordPage({
           const draft = drafts[exercise.id] || defaultDraft;
           const record = records.get(exercise.id);
           const draftComplete = isDraftComplete(draft, exercise.kind);
+          const draftChanged = record ? isDraftChanged(draft, record, exercise.kind) : true;
           return (
             <article className={`exercise-row ${record ? "saved" : ""}`} key={exercise.id}>
               <div className="exercise-main">
@@ -462,7 +483,7 @@ function RecordPage({
               <div className="row-actions">
                 <button
                   className="primary save-button"
-                  disabled={busyId === exercise.id || !draftComplete}
+                  disabled={busyId === exercise.id || !draftComplete || !draftChanged}
                   onClick={() => saveRecord(exercise)}
                   aria-label={
                     busyId === exercise.id
@@ -473,6 +494,21 @@ function RecordPage({
                 >
                   {record ? <RefreshCw size={17} /> : <Plus size={18} />}
                 </button>
+                {record && (
+                  <button
+                    className="secondary cancel-button"
+                    disabled={busyId === exercise.id}
+                    onClick={() => cancelRecord(exercise, record)}
+                    aria-label={
+                      busyId === exercise.id
+                        ? `${exercise.name}の記録を取り消し中`
+                        : `${exercise.name}の記録を取り消す`
+                    }
+                    title="取り消し"
+                  >
+                    <X size={17} />
+                  </button>
+                )}
               </div>
             </article>
           );
@@ -699,6 +735,8 @@ function LineChart({
   unit: string;
   color: string;
 }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   if (!points.length)
     return (
       <div className="chart-empty">
@@ -708,11 +746,17 @@ function LineChart({
     );
   const width = 620,
     height = 240,
-    padX = 34,
+    padX = 54,
     padY = 28;
-  const min = Math.min(...values),
-    max = Math.max(...values),
+  const rawMin = Math.min(...values),
+    rawMax = Math.max(...values),
+    domainPadding = rawMax === rawMin ? Math.max(Math.abs(rawMax) * 0.05, 1) : 0,
+    min = Math.max(0, rawMin - domainPadding),
+    max = rawMax + domainPadding,
     range = max - min || 1;
+  const selectedIndex = selectedDate ? points.findIndex((point) => point.date === selectedDate) : -1;
+  const activeIndex = hoveredIndex ?? (selectedIndex >= 0 ? selectedIndex : null);
+  const formatValue = (value: number) => Number(value.toFixed(1)).toString();
   const coords = values.map((value, index) => ({
     x: padX + (index / Math.max(values.length - 1, 1)) * (width - padX * 2),
     y: height - padY - ((value - min) / range) * (height - padY * 2),
@@ -728,19 +772,23 @@ function LineChart({
       </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        role="img"
+        role="group"
         aria-label={`推移グラフ。最新値${values.at(-1)}${unit}`}
+        onClick={() => setSelectedDate(null)}
       >
-        {[0, 1, 2, 3].map((line) => (
-          <line
-            key={line}
-            x1={padX}
-            x2={width - padX}
-            y1={padY + line * 58}
-            y2={padY + line * 58}
-            className="grid-line"
-          />
-        ))}
+        {[0, 1, 2, 3].map((line) => {
+          const y = padY + (line / 3) * (height - padY * 2);
+          const value = max - (line / 3) * (max - min);
+          return (
+            <g key={line}>
+              <line x1={padX} x2={width - padX} y1={y} y2={y} className="grid-line" />
+              <text x={padX - 8} y={y} className="chart-y-label">
+                {formatValue(value)}
+                {unit}
+              </text>
+            </g>
+          );
+        })}
         <polyline
           points={coords.map((p) => `${p.x},${p.y}`).join(" ")}
           fill="none"
@@ -750,27 +798,82 @@ function LineChart({
           strokeLinejoin="round"
         />
         {coords.map((point, index) => (
-          <circle
+          <g
             key={points[index].date}
-            cx={point.x}
-            cy={point.y}
-            r="5"
-            fill="#101613"
-            stroke={color}
-            strokeWidth="3"
+            className="chart-point"
+            role="button"
+            tabIndex={0}
+            aria-label={`${points[index].date}: ${values[index]}${unit}`}
+            onPointerEnter={() => setHoveredIndex(index)}
+            onPointerLeave={() => setHoveredIndex(null)}
+            onFocus={() => setHoveredIndex(index)}
+            onBlur={() => setHoveredIndex(null)}
+            onClick={(event) => {
+              event.stopPropagation();
+              setSelectedDate((current) => (current === points[index].date ? null : points[index].date));
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              setSelectedDate((current) => (current === points[index].date ? null : points[index].date));
+            }}
           >
-            <title>
-              {points[index].date}: {values[index]}
-              {unit}
-            </title>
-          </circle>
+            <circle cx={point.x} cy={point.y} r="14" className="chart-point-hitbox" />
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r={activeIndex === index ? "7" : "5"}
+              fill="#101613"
+              stroke={color}
+              strokeWidth="3"
+            />
+          </g>
         ))}
+        {activeIndex !== null ? (
+          <ChartTooltip
+            point={coords[activeIndex]}
+            date={points[activeIndex].date}
+            value={`${formatValue(values[activeIndex])}${unit}`}
+            width={width}
+            color={color}
+          />
+        ) : null}
       </svg>
       <div className="chart-axis">
         <span>{points[0].date}</span>
         <span>{points.at(-1)?.date}</span>
       </div>
     </div>
+  );
+}
+
+function ChartTooltip({
+  point,
+  date,
+  value,
+  width,
+  color,
+}: {
+  point: { x: number; y: number };
+  date: string;
+  value: string;
+  width: number;
+  color: string;
+}) {
+  const tooltipWidth = 108;
+  const tooltipHeight = 43;
+  const x = Math.min(Math.max(point.x - tooltipWidth / 2, 4), width - tooltipWidth - 4);
+  const y = point.y > tooltipHeight + 12 ? point.y - tooltipHeight - 10 : point.y + 12;
+  return (
+    <g className="chart-tooltip" aria-hidden="true">
+      <rect x={x} y={y} width={tooltipWidth} height={tooltipHeight} rx="7" />
+      <text x={x + tooltipWidth / 2} y={y + 17} className="chart-tooltip-value" fill={color}>
+        {value}
+      </text>
+      <text x={x + tooltipWidth / 2} y={y + 33} className="chart-tooltip-date">
+        {date}
+      </text>
+    </g>
   );
 }
 
