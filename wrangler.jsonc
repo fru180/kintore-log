@@ -3,6 +3,16 @@
   "name": "kintore-log",
   "main": "worker/index.js",
   "compatibility_date": "2026-09-15",
+  "routes": [
+    {
+      "pattern": "curiosk.com/kintore-log",
+      "zone_name": "curiosk.com",
+    },
+    {
+      "pattern": "curiosk.com/kintore-log/*",
+      "zone_name": "curiosk.com",
+    },
+  ],
   "observability": {
     "logs": {
       "enabled": true,
@@ -13,7 +23,7 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"],
+    "run_worker_first": ["/kintore-log*", "/api/*"],
   },
   "d1_databases": [
     {

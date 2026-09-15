@@ -1,5 +1,6 @@
 const encoder = new TextEncoder();
 const SESSION_DAYS = 30;
+const APP_BASE_PATH = "/kintore-log";
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), {
@@ -49,7 +50,19 @@ function cookieValue(request, name) {
 
 function sessionCookie(request, token, maxAge) {
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
-  return `kintore_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+  return `kintore_session=${encodeURIComponent(token)}; Path=${APP_BASE_PATH}; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+}
+
+function withoutAppBasePath(pathname) {
+  if (pathname === APP_BASE_PATH) return "/";
+  if (pathname.startsWith(`${APP_BASE_PATH}/`)) return pathname.slice(APP_BASE_PATH.length);
+  return pathname;
+}
+
+function requestWithoutAppBasePath(request) {
+  const url = new URL(request.url);
+  url.pathname = withoutAppBasePath(url.pathname);
+  return new Request(url, request);
 }
 
 async function currentUser(request, env) {
@@ -349,10 +362,11 @@ async function route(request, env) {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
+    const appRequest = requestWithoutAppBasePath(request);
+    const url = new URL(appRequest.url);
+    if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(appRequest);
     try {
-      return await route(request, env);
+      return await route(appRequest, env);
     } catch (error) {
       if (error instanceof ApiError) return fail(error.message, error.status);
       console.error(error);
