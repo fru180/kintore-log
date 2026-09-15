@@ -1,6 +1,7 @@
 const encoder = new TextEncoder();
 const SESSION_DAYS = 30;
 const APP_BASE_PATH = "/kintore-log";
+const PBKDF2_ITERATIONS = 100_000;
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), {
@@ -35,7 +36,11 @@ async function passwordHash(password, saltHex) {
   const salt = new Uint8Array(saltHex.match(/.{2}/g).map((byte) => Number.parseInt(byte, 16)));
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
   return toHex(
-    await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 120_000 }, key, 256),
+    await crypto.subtle.deriveBits(
+      { name: "PBKDF2", hash: "SHA-256", salt, iterations: PBKDF2_ITERATIONS },
+      key,
+      256,
+    ),
   );
 }
 
