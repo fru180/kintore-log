@@ -23,13 +23,11 @@ import {
 } from "lucide-react";
 import { api, del, patch, post } from "./api";
 import { monthLabel, shiftDay, shiftMonth, toLocalDate } from "./date";
-import { isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
-import type { Draft, Exercise, StatPoint, User, WorkoutRecord } from "./types";
+import { createInitialDraft, defaultDraft, isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
+import type { Draft, Exercise, LatestWeight, StatPoint, User, WorkoutRecord } from "./types";
 
 type Tab = "record" | "charts" | "admin";
 type Notice = { message: string; kind: "success" | "error" } | null;
-
-const defaultDraft: Draft = { weightKg: 0, reps: 10, sets: 3, distanceKm: 0, durationMinutes: 30 };
 
 function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -274,26 +272,22 @@ function RecordPage({
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   const load = useCallback(async () => {
-    const data = await api<{ records: WorkoutRecord[]; bodyWeight: number | null }>(
-      `/api/records?date=${date}`,
-    );
+    const data = await api<{
+      records: WorkoutRecord[];
+      bodyWeight: number | null;
+      latestWeights: LatestWeight[];
+    }>(`/api/records?date=${date}`);
     const map = new Map(data.records.map((record) => [record.exerciseId, record]));
+    const latestWeights = new Map(data.latestWeights.map((item) => [item.exerciseId, item.weightKg]));
     setRecords(map);
     setBodyWeight(data.bodyWeight === null ? "" : String(data.bodyWeight));
     const next: Record<number, Draft> = {};
     exercises.forEach((exercise) => {
       const stored = localStorage.getItem(`kintore-default-${exercise.id}`);
-      const saved = stored ? { ...defaultDraft, ...JSON.parse(stored) } : defaultDraft;
+      const saved: Partial<Draft> = stored ? JSON.parse(stored) : {};
+      delete saved.weightKg;
       const record = map.get(exercise.id);
-      next[exercise.id] = record
-        ? {
-            weightKg: record.weightKg ?? 0,
-            reps: record.reps ?? 10,
-            sets: record.sets ?? 3,
-            distanceKm: record.distanceKm ?? 0,
-            durationMinutes: record.durationMinutes ?? 30,
-          }
-        : { ...saved };
+      next[exercise.id] = createInitialDraft(record, latestWeights.get(exercise.id) ?? 0, saved);
     });
     setDrafts(next);
   }, [date, exercises]);
@@ -326,7 +320,11 @@ function RecordPage({
         date,
         ...values,
       });
-      localStorage.setItem(`kintore-default-${exercise.id}`, JSON.stringify(values));
+      const storedDefaults =
+        exercise.kind === "strength"
+          ? { reps: values.reps, sets: values.sets }
+          : { distanceKm: values.distanceKm, durationMinutes: values.durationMinutes };
+      localStorage.setItem(`kintore-default-${exercise.id}`, JSON.stringify(storedDefaults));
       setRecords((current) =>
         new Map(current).set(exercise.id, { ...record, name: exercise.name, kind: exercise.kind }),
       );
@@ -342,11 +340,7 @@ function RecordPage({
     setBusyId(exercise.id);
     try {
       await del(`/api/records/${record.id}`);
-      setRecords((current) => {
-        const next = new Map(current);
-        next.delete(exercise.id);
-        return next;
-      });
+      await load();
       notify({ message: `${exercise.name}の記録を取り消しました`, kind: "success" });
     } catch (e) {
       notify({ message: e instanceof Error ? e.message : "取り消しできませんでした", kind: "error" });

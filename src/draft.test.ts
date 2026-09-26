@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
+import { createInitialDraft, isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
 import type { Draft, WorkoutRecord } from "./types";
 
 const completeDraft: Draft = {
@@ -30,6 +30,25 @@ describe("toDraftValue", () => {
 
   it("入力された数値をnumberへ変換する", () => {
     expect(toDraftValue("3")).toBe(3);
+  });
+});
+
+describe("createInitialDraft", () => {
+  it("選択日の記録がある場合は最新重量や保存済み初期値より優先する", () => {
+    expect(createInitialDraft(savedRecord, 80, { weightKg: 70, reps: 12 })).toEqual(completeDraft);
+  });
+
+  it("選択日の記録がない場合はAPIの最新重量と保存済みの回数・セット数を使う", () => {
+    expect(createInitialDraft(undefined, 80, { weightKg: 70, reps: 12, sets: 4 })).toEqual({
+      ...completeDraft,
+      weightKg: 80,
+      reps: 12,
+      sets: 4,
+    });
+  });
+
+  it("未記録種目のAPI初期値0kgを保持する", () => {
+    expect(createInitialDraft(undefined, 0, {})).toEqual(completeDraft);
   });
 });
 

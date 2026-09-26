@@ -12,6 +12,7 @@ export type WorkoutRecord = {
   distanceKm: number | null;
   durationMinutes: number | null;
 };
+export type LatestWeight = { exerciseId: number; weightKg: number };
 export type Draft = {
   weightKg: number | "";
   reps: number | "";

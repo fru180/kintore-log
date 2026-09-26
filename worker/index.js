@@ -235,7 +235,26 @@ async function route(request, env) {
     )
       .bind(user.id, date)
       .first();
-    return json({ records: results, bodyWeight: bodyWeight?.weightKg ?? null });
+    const latestWeights = await env.DB.prepare(
+      `SELECT e.id AS exerciseId,
+        COALESCE((
+          SELECT r.weight_kg
+          FROM workout_records r
+          WHERE r.user_id = ? AND r.exercise_id = e.id AND r.weight_kg IS NOT NULL
+          ORDER BY r.workout_date DESC, r.id DESC
+          LIMIT 1
+        ), 0) AS weightKg
+       FROM exercises e
+       WHERE e.kind = 'strength'
+       ORDER BY e.sort_order, e.id`,
+    )
+      .bind(user.id)
+      .all();
+    return json({
+      records: results,
+      bodyWeight: bodyWeight?.weightKg ?? null,
+      latestWeights: latestWeights.results,
+    });
   }
 
   if (path === "/api/records" && method === "POST") {
