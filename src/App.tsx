@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   CalendarDays,
@@ -24,10 +24,15 @@ import {
 import { api, del, patch, post } from "./api";
 import { monthLabel, shiftDay, shiftMonth, toLocalDate } from "./date";
 import { createInitialDraft, defaultDraft, isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
+import { getTrainedMuscles } from "./muscles";
 import type { Draft, Exercise, LatestWeight, StatPoint, User, WorkoutRecord } from "./types";
 
 type Tab = "record" | "charts" | "admin";
 type Notice = { message: string; kind: "success" | "error" } | null;
+
+const TrainedMusclesCard = lazy(() =>
+  import("./MuscleBody").then((module) => ({ default: module.TrainedMusclesCard })),
+);
 
 function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -270,26 +275,43 @@ function RecordPage({
   const [bodyWeight, setBodyWeight] = useState("");
   const [busyId, setBusyId] = useState<number | string | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [recordsDate, setRecordsDate] = useState<string | null>(null);
+  const [recordsStatus, setRecordsStatus] = useState<"loading" | "ready" | "error">("loading");
+  const loadRequestRef = useRef(0);
 
   const load = useCallback(async () => {
-    const data = await api<{
-      records: WorkoutRecord[];
-      bodyWeight: number | null;
-      latestWeights: LatestWeight[];
-    }>(`/api/records?date=${date}`);
-    const map = new Map(data.records.map((record) => [record.exerciseId, record]));
-    const latestWeights = new Map(data.latestWeights.map((item) => [item.exerciseId, item.weightKg]));
-    setRecords(map);
-    setBodyWeight(data.bodyWeight === null ? "" : String(data.bodyWeight));
-    const next: Record<number, Draft> = {};
-    exercises.forEach((exercise) => {
-      const stored = localStorage.getItem(`kintore-default-${exercise.id}`);
-      const saved: Partial<Draft> = stored ? JSON.parse(stored) : {};
-      delete saved.weightKg;
-      const record = map.get(exercise.id);
-      next[exercise.id] = createInitialDraft(record, latestWeights.get(exercise.id) ?? 0, saved);
-    });
-    setDrafts(next);
+    const requestId = ++loadRequestRef.current;
+    setRecordsStatus("loading");
+    setRecordsDate(null);
+    try {
+      const data = await api<{
+        records: WorkoutRecord[];
+        bodyWeight: number | null;
+        latestWeights: LatestWeight[];
+      }>(`/api/records?date=${date}`);
+      if (requestId !== loadRequestRef.current) return;
+      const map = new Map(data.records.map((record) => [record.exerciseId, record]));
+      const latestWeights = new Map(data.latestWeights.map((item) => [item.exerciseId, item.weightKg]));
+      setRecords(map);
+      setBodyWeight(data.bodyWeight === null ? "" : String(data.bodyWeight));
+      const next: Record<number, Draft> = {};
+      exercises.forEach((exercise) => {
+        const stored = localStorage.getItem(`kintore-default-${exercise.id}`);
+        const saved: Partial<Draft> = stored ? JSON.parse(stored) : {};
+        delete saved.weightKg;
+        const record = map.get(exercise.id);
+        next[exercise.id] = createInitialDraft(record, latestWeights.get(exercise.id) ?? 0, saved);
+      });
+      setDrafts(next);
+      setRecordsDate(date);
+      setRecordsStatus("ready");
+    } catch (error) {
+      if (requestId !== loadRequestRef.current) return;
+      setRecords(new Map());
+      setRecordsDate(date);
+      setRecordsStatus("error");
+      throw error;
+    }
   }, [date, exercises]);
 
   useEffect(() => {
@@ -365,6 +387,12 @@ function RecordPage({
       setBusyId(null);
     }
   };
+
+  const trainedMuscles = useMemo(
+    () => (recordsDate === date && recordsStatus === "ready" ? getTrainedMuscles([...records.values()]) : []),
+    [date, records, recordsDate, recordsStatus],
+  );
+  const trainedMusclesStatus = recordsDate === date ? recordsStatus : "loading";
 
   return (
     <section>
@@ -537,6 +565,10 @@ function RecordPage({
           <Check size={18} />
         </button>
       </article>
+
+      <Suspense fallback={<div className="trained-muscles-loading">3D人体図を準備中…</div>}>
+        <TrainedMusclesCard muscles={trainedMuscles} status={trainedMusclesStatus} />
+      </Suspense>
     </section>
   );
 }

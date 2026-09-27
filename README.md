@@ -6,6 +6,7 @@
 
 - アカウント登録・ログイン（複数ユーザー対応）
 - 筋トレ、有酸素運動、体重の日別記録・更新・削除
+- 当日に鍛えた筋肉を確認できる360度回転・拡大縮小対応の精密な3D解剖モデル
 - 端末ごとの前回入力値の保存
 - カレンダー形式の履歴
 - 種目別重量／距離と体重の推移グラフ
@@ -77,3 +78,10 @@ npm run build
 ```
 
 コミット時には Husky と lint-staged により、ステージ済みのファイルへESLintとPrettierが自動実行されます。
+
+## 3D人体モデル
+
+「鍛えた部位」には、[Z-Anatomy](https://www.z-anatomy.com/) / BodyParts3Dを基に
+[hpfrei/body-anatomy-3d-viewer](https://github.com/hpfrei/body-anatomy-3d-viewer)でWeb向けに最適化されたモデルを使用しています。
+主要な筋肉をタップまたはクリックすると、筋肉名と対応する登録種目を確認できます。
+モデルは[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)で提供されています。

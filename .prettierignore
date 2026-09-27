@@ -6,3 +6,4 @@ package-lock.json
 AGENTS.md
 docs
 migrations
+public/draco

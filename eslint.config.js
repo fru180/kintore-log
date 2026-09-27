@@ -6,7 +6,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist", ".wrangler", "node_modules", "*.tsbuildinfo"],
+    ignores: ["dist", ".wrangler", "node_modules", "public/draco", "*.tsbuildinfo"],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
