@@ -4,6 +4,10 @@ import { createPortal } from "react-dom";
 import * as THREE from "three";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 
 import { modelMuscleIds } from "./muscleModel";
 import {
@@ -115,6 +119,7 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const applyHighlightRef = useRef<((active: ReadonlySet<MuscleId>) => void) | null>(null);
+  const applySelectionOutlineRef = useRef<((selected: SelectableMuscleId | null) => void) | null>(null);
   const activeMusclesRef = useRef<ReadonlySet<MuscleId>>(new Set(muscles));
   const [shouldLoad, setShouldLoad] = useState(false);
   const [modelStatus, setModelStatus] = useState<ModelStatus>("waiting");
@@ -181,6 +186,20 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
     const modelGroup = new THREE.Group();
     scene.add(modelGroup);
 
+    const composer = new EffectComposer(renderer);
+    const renderPass = new RenderPass(scene, camera);
+    const outlinePass = new OutlinePass(new THREE.Vector2(1, 1), scene, camera);
+    const outputPass = new OutputPass();
+    outlinePass.visibleEdgeColor.set(0xff815d);
+    outlinePass.hiddenEdgeColor.set(0xb23f29);
+    outlinePass.edgeStrength = 7;
+    outlinePass.edgeGlow = 1;
+    outlinePass.edgeThickness = 2.5;
+    outlinePass.enabled = false;
+    composer.addPass(renderPass);
+    composer.addPass(outlinePass);
+    composer.addPass(outputPass);
+
     scene.add(new THREE.HemisphereLight(0xfff6e7, 0x331712, 2.5));
     const keyLight = new THREE.DirectionalLight(0xfff4db, 3.1);
     keyLight.position.set(3, 4, 5);
@@ -210,10 +229,12 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
 
     const render = () => {
       animationFrame = requestAnimationFrame(render);
-      renderer.render(scene, camera);
+      composer.render();
     };
 
     let verticalHalf = 1;
+    let modelVerticalHalf = 1;
+    let modelHorizontalRadius = 0;
     let zoom = 1;
     let panX = 0;
     let panY = 0;
@@ -234,12 +255,14 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
       const width = Math.max(mount.clientWidth, 1);
       const height = Math.max(mount.clientHeight, 1);
       const aspect = width / height;
+      verticalHalf = Math.max(modelVerticalHalf, modelHorizontalRadius / aspect);
       camera.top = verticalHalf;
       camera.bottom = -verticalHalf;
       camera.left = -verticalHalf * aspect;
       camera.right = verticalHalf * aspect;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height, false);
+      composer.setSize(width, height);
       setPan(panX, panY);
     };
     const resizeObserver = new ResizeObserver(resize);
@@ -260,6 +283,14 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
       });
     };
     applyHighlightRef.current = applyHighlight;
+
+    const applySelectionOutline = (selected: SelectableMuscleId | null) => {
+      outlinePass.selectedObjects = selected
+        ? modelMeshes.filter(({ selectableMuscle }) => selectableMuscle === selected).map(({ mesh }) => mesh)
+        : [];
+      outlinePass.enabled = outlinePass.selectedObjects.length > 0;
+    };
+    applySelectionOutlineRef.current = applySelectionOutline;
 
     let yaw = 0;
     let dragging = false;
@@ -441,7 +472,8 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
         const center = bounds.getCenter(new THREE.Vector3());
         const size = bounds.getSize(new THREE.Vector3());
         anatomyModel.position.sub(center);
-        verticalHalf = Math.max(size.y * 0.56, 0.8);
+        modelVerticalHalf = Math.max(size.y * 0.56, 0.8);
+        modelHorizontalRadius = Math.hypot(size.x, size.z) * 0.54;
         const maxDimension = Math.max(size.x, size.y, size.z);
         camera.position.set(0, 0, maxDimension * 2.8);
         camera.near = 0.01;
@@ -479,9 +511,13 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
       inactiveMaterial.dispose();
       activeMaterial.dispose();
       dracoLoader.dispose();
+      outlinePass.dispose();
+      outputPass.dispose();
+      composer.dispose();
       renderer.dispose();
       canvas.remove();
       applyHighlightRef.current = null;
+      applySelectionOutlineRef.current = null;
     };
   }, [shouldLoad]);
 
@@ -494,6 +530,10 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
       canvas.setAttribute("aria-label", muscleBodyAriaLabel(muscles));
     }
   }, [activeKey, muscles]);
+
+  useEffect(() => {
+    applySelectionOutlineRef.current?.(selectedMuscle);
+  }, [selectedMuscle]);
 
   const rotate = (amount: number) => {
     const canvas = mountRef.current?.querySelector("canvas");

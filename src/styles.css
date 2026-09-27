@@ -497,7 +497,10 @@ select:focus-visible {
 }
 .muscle-stage-wrap {
   position: relative;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  overflow: hidden;
 }
 .muscle-stage {
   position: relative;
@@ -506,6 +509,8 @@ select:focus-visible {
 }
 .muscle-canvas {
   display: block;
+  max-width: 100%;
+  max-height: 100%;
   cursor: grab;
   touch-action: pan-y;
 }
