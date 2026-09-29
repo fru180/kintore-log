@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ChevronUp,
   Dumbbell,
+  Flame,
   LogOut,
   Pause,
   Pencil,
@@ -46,6 +47,14 @@ function App() {
   const loadExercises = useCallback(async () => {
     const data = await api<{ exercises: Exercise[] }>("/api/exercises");
     setExercises(data.exercises);
+  }, []);
+
+  const updateExerciseReadiness = useCallback((exerciseId: number, ready: boolean) => {
+    setExercises((current) =>
+      current.map((exercise) =>
+        exercise.id === exerciseId ? { ...exercise, readyForWeightIncrease: ready } : exercise,
+      ),
+    );
   }, []);
 
   useEffect(() => {
@@ -121,7 +130,13 @@ function App() {
 
       <main className="page">
         {tab === "record" && (
-          <RecordPage date={date} setDate={setDate} exercises={exercises} notify={setNotice} />
+          <RecordPage
+            date={date}
+            setDate={setDate}
+            exercises={exercises}
+            onExerciseReadinessChange={updateExerciseReadiness}
+            notify={setNotice}
+          />
         )}
         {tab === "charts" && <ChartsPage exercises={exercises} notify={setNotice} />}
         {tab === "admin" && user.isAdmin ? (
@@ -263,11 +278,13 @@ function RecordPage({
   date,
   setDate,
   exercises,
+  onExerciseReadinessChange,
   notify,
 }: {
   date: string;
   setDate: (date: string) => void;
   exercises: Exercise[];
+  onExerciseReadinessChange: (exerciseId: number, ready: boolean) => void;
   notify: (notice: Notice) => void;
 }) {
   const [records, setRecords] = useState<Map<number, WorkoutRecord>>(new Map());
@@ -277,6 +294,7 @@ function RecordPage({
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [recordsDate, setRecordsDate] = useState<string | null>(null);
   const [recordsStatus, setRecordsStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [readinessBusyIds, setReadinessBusyIds] = useState<Set<number>>(() => new Set());
   const loadRequestRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -323,6 +341,33 @@ function RecordPage({
       ...current,
       [id]: { ...(current[id] || defaultDraft), [key]: toDraftValue(value) },
     }));
+  };
+
+  const toggleWeightIncreaseReadiness = async (exercise: Exercise) => {
+    if (readinessBusyIds.has(exercise.id)) return;
+    const previous = exercise.readyForWeightIncrease;
+    const next = !previous;
+    onExerciseReadinessChange(exercise.id, next);
+    setReadinessBusyIds((current) => new Set(current).add(exercise.id));
+    try {
+      const result = await patch<{ exerciseId: number; readyForWeightIncrease: boolean }>(
+        `/api/exercises/${exercise.id}/weight-increase-ready`,
+        { ready: next },
+      );
+      onExerciseReadinessChange(result.exerciseId, result.readyForWeightIncrease);
+    } catch (error) {
+      onExerciseReadinessChange(exercise.id, previous);
+      notify({
+        message: error instanceof Error ? error.message : "重量アップ候補を保存できませんでした",
+        kind: "error",
+      });
+    } finally {
+      setReadinessBusyIds((current) => {
+        const updated = new Set(current);
+        updated.delete(exercise.id);
+        return updated;
+      });
+    }
   };
 
   const saveRecord = async (exercise: Exercise) => {
@@ -447,6 +492,22 @@ function RecordPage({
               <div className="exercise-main">
                 <div className="exercise-title">
                   <h2>{exercise.name}</h2>
+                  {exercise.kind === "strength" && (
+                    <button
+                      className={`weight-increase-button ${exercise.readyForWeightIncrease ? "active" : ""}`}
+                      type="button"
+                      disabled={readinessBusyIds.has(exercise.id)}
+                      aria-label={
+                        exercise.readyForWeightIncrease
+                          ? `${exercise.name}を重量アップ候補から外す`
+                          : `${exercise.name}を重量アップ候補にする`
+                      }
+                      aria-pressed={exercise.readyForWeightIncrease}
+                      onClick={() => toggleWeightIncreaseReadiness(exercise)}
+                    >
+                      <Flame size={18} aria-hidden="true" />
+                    </button>
+                  )}
                   {record && <span>記録済み</span>}
                 </div>
                 <div className="metrics">

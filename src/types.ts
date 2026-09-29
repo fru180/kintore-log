@@ -1,5 +1,11 @@
 export type User = { id: number; accountName: string; isAdmin: number };
-export type Exercise = { id: number; name: string; kind: "strength" | "cardio"; sortOrder: number };
+export type Exercise = {
+  id: number;
+  name: string;
+  kind: "strength" | "cardio";
+  sortOrder: number;
+  readyForWeightIncrease: boolean;
+};
 export type WorkoutRecord = {
   id: number;
   exerciseId: number;

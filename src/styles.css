@@ -246,11 +246,46 @@ select:focus-visible {
   gap: 7px;
 }
 .exercise-title h2 {
+  min-width: 0;
   overflow: hidden;
   margin: 0;
   font-size: 15px;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.weight-increase-button {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  color: #77817b;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  opacity: 0.5;
+  cursor: pointer;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease,
+    opacity 0.16s ease;
+}
+.weight-increase-button svg {
+  fill: currentColor;
+}
+.weight-increase-button:hover {
+  color: #aab2ad;
+  background: rgba(255, 255, 255, 0.05);
+  opacity: 0.85;
+}
+.weight-increase-button.active {
+  color: #ff554c;
+  background: rgba(255, 85, 76, 0.09);
+  opacity: 1;
+}
+.weight-increase-button:disabled {
+  cursor: wait;
 }
 .exercise-title span {
   display: inline-block;

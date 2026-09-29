@@ -171,11 +171,22 @@ async function route(request, env) {
   }
 
   if (path === "/api/exercises" && method === "GET") {
-    await requireUser(request, env);
+    const user = await requireUser(request, env);
     const { results } = await env.DB.prepare(
-      "SELECT id, name, kind, sort_order AS sortOrder FROM exercises ORDER BY sort_order, id",
-    ).all();
-    return json({ exercises: results });
+      `SELECT e.id, e.name, e.kind, e.sort_order AS sortOrder,
+        CASE WHEN e.kind = 'strength' AND m.user_id IS NOT NULL THEN 1 ELSE 0 END AS readyForWeightIncrease
+       FROM exercises e
+       LEFT JOIN exercise_weight_increase_marks m
+         ON m.exercise_id = e.id AND m.user_id = ?
+       ORDER BY e.sort_order, e.id`,
+    )
+      .bind(user.id)
+      .all();
+    const exercises = results.map((exercise) => ({
+      ...exercise,
+      readyForWeightIncrease: Boolean(exercise.readyForWeightIncrease),
+    }));
+    return json({ exercises });
   }
 
   if (path === "/api/exercises" && method === "POST") {
@@ -191,6 +202,32 @@ async function route(request, env) {
     return json({ ok: true }, 201);
   }
 
+  const weightIncreaseMatch = path.match(/^\/api\/exercises\/(\d+)\/weight-increase-ready$/);
+  if (weightIncreaseMatch && method === "PATCH") {
+    const user = await requireUser(request, env);
+    const body = await readJson(request);
+    if (typeof body.ready !== "boolean") throw new ApiError("入力内容を確認してください");
+    const exerciseId = Number(weightIncreaseMatch[1]);
+    const exercise = await env.DB.prepare("SELECT kind FROM exercises WHERE id = ?").bind(exerciseId).first();
+    if (!exercise) throw new ApiError("種目が見つかりません", 404);
+    if (exercise.kind !== "strength") throw new ApiError("筋力種目のみ設定できます");
+
+    if (body.ready) {
+      await env.DB.prepare(
+        `INSERT INTO exercise_weight_increase_marks (user_id, exercise_id)
+         VALUES (?, ?)
+         ON CONFLICT(user_id, exercise_id) DO NOTHING`,
+      )
+        .bind(user.id, exerciseId)
+        .run();
+    } else {
+      await env.DB.prepare("DELETE FROM exercise_weight_increase_marks WHERE user_id = ? AND exercise_id = ?")
+        .bind(user.id, exerciseId)
+        .run();
+    }
+    return json({ exerciseId, readyForWeightIncrease: body.ready });
+  }
+
   const exerciseMatch = path.match(/^\/api\/exercises\/(\d+)$/);
   if (exerciseMatch && method === "PATCH") {
     await requireAdmin(request, env);
@@ -200,9 +237,22 @@ async function route(request, env) {
     const sortOrder = Number(body.sortOrder);
     if (!name || name.length > 50 || !Number.isInteger(sortOrder))
       throw new ApiError("入力内容を確認してください");
-    await env.DB.prepare("UPDATE exercises SET name = ?, kind = ?, sort_order = ? WHERE id = ?")
-      .bind(name, kind, sortOrder, exerciseMatch[1])
-      .run();
+    const statements = [
+      env.DB.prepare("UPDATE exercises SET name = ?, kind = ?, sort_order = ? WHERE id = ?").bind(
+        name,
+        kind,
+        sortOrder,
+        exerciseMatch[1],
+      ),
+    ];
+    if (kind === "cardio") {
+      statements.push(
+        env.DB.prepare("DELETE FROM exercise_weight_increase_marks WHERE exercise_id = ?").bind(
+          exerciseMatch[1],
+        ),
+      );
+    }
+    await env.DB.batch(statements);
     return json({ ok: true });
   }
   if (exerciseMatch && method === "DELETE") {
