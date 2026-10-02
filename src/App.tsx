@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { api, del, patch, post } from "./api";
+import { calculateChartScale } from "./chartScale";
 import { datePosition, monthLabel, shiftDay, shiftMonth, toLocalDate } from "./date";
 import { createInitialDraft, defaultDraft, isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
 import { getMusclesForExercise, getTrainedMuscles } from "./muscles";
@@ -841,6 +842,7 @@ function ChartsPage({ exercises, notify }: { exercises: Exercise[]; notify: (not
             points={exerciseStats}
             values={exerciseValues}
             unit={selectedExercise?.kind === "cardio" ? "km" : "kg"}
+            minimumPadding={selectedExercise?.kind === "cardio" ? 0.1 : 0.5}
             color="#d7ff45"
           />
         </article>
@@ -855,7 +857,13 @@ function ChartsPage({ exercises, notify }: { exercises: Exercise[]; notify: (not
               </div>
             </div>
           </div>
-          <LineChart points={bodyWeights} values={weightValues} unit="kg" color="#ff815d" />
+          <LineChart
+            points={bodyWeights}
+            values={weightValues}
+            unit="kg"
+            minimumPadding={0.1}
+            color="#ff815d"
+          />
         </article>
       </div>
     </section>
@@ -866,11 +874,13 @@ function LineChart({
   points,
   values,
   unit,
+  minimumPadding,
   color,
 }: {
   points: StatPoint[];
   values: number[];
   unit: string;
+  minimumPadding: number;
   color: string;
 }) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -886,12 +896,7 @@ function LineChart({
     height = 240,
     padX = 54,
     padY = 28;
-  const rawMin = Math.min(...values),
-    rawMax = Math.max(...values),
-    domainPadding = rawMax === rawMin ? Math.max(Math.abs(rawMax) * 0.05, 1) : 0,
-    min = Math.min(0, rawMin - domainPadding),
-    max = Math.max(0, rawMax + domainPadding),
-    range = max - min || 1;
+  const { min, max, range } = calculateChartScale(values, minimumPadding);
   const selectedIndex = selectedDate ? points.findIndex((point) => point.date === selectedDate) : -1;
   const activeIndex = hoveredIndex ?? (selectedIndex >= 0 ? selectedIndex : null);
   const formatValue = (value: number) => Number(value.toFixed(1)).toString();
