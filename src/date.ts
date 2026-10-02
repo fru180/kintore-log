@@ -27,3 +27,17 @@ export const shiftDay = (value: string, amount: number) => {
   const [year, month, day] = value.split("-").map(Number);
   return toLocalDate(new Date(year, month - 1, day + amount));
 };
+
+export const daysBetween = (from: string, to: string) => {
+  const toUtcTime = (value: string) => {
+    const [year, month, day] = value.split("-").map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
+
+  return (toUtcTime(to) - toUtcTime(from)) / (24 * 60 * 60 * 1000);
+};
+
+export const datePosition = (value: string, start: string, end: string) => {
+  const range = daysBetween(start, end);
+  return range === 0 ? 0 : daysBetween(start, value) / range;
+};

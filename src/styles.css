@@ -1002,7 +1002,6 @@ select,
 .chart-summary {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
 }
 .chart-summary b {
   font: 700 36px var(--title);
@@ -1012,7 +1011,6 @@ select,
   color: var(--muted);
   font-size: 13px;
 }
-.chart-summary span,
 .chart-axis {
   color: var(--muted);
   font-size: 9px;

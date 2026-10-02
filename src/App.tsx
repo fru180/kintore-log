@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { api, del, patch, post } from "./api";
-import { monthLabel, shiftDay, shiftMonth, toLocalDate } from "./date";
+import { datePosition, monthLabel, shiftDay, shiftMonth, toLocalDate } from "./date";
 import { createInitialDraft, defaultDraft, isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
 import { getMusclesForExercise, getTrainedMuscles } from "./muscles";
 import type { MuscleId } from "./muscles";
@@ -892,8 +892,10 @@ function LineChart({
   const selectedIndex = selectedDate ? points.findIndex((point) => point.date === selectedDate) : -1;
   const activeIndex = hoveredIndex ?? (selectedIndex >= 0 ? selectedIndex : null);
   const formatValue = (value: number) => Number(value.toFixed(1)).toString();
+  const firstDate = points[0].date;
+  const lastDate = points.at(-1)?.date ?? firstDate;
   const coords = values.map((value, index) => ({
-    x: padX + (index / Math.max(values.length - 1, 1)) * (width - padX * 2),
+    x: padX + datePosition(points[index].date, firstDate, lastDate) * (width - padX * 2),
     y: height - padY - ((value - min) / range) * (height - padY * 2),
   }));
   return (
@@ -903,7 +905,6 @@ function LineChart({
           {values.at(-1)}
           <small>{unit}</small>
         </b>
-        <span>{points.at(-1)?.date}</span>
       </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
