@@ -317,7 +317,7 @@ async function route(request, env) {
     let values;
     if (kind === "strength") {
       if (
-        !numberIn(body.weightKg, 0, 1000) ||
+        !numberIn(body.weightKg, -1000, 1000) ||
         !Number.isInteger(body.reps) ||
         !numberIn(body.reps, 0, 1000) ||
         !Number.isInteger(body.sets) ||

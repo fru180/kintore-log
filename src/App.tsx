@@ -545,6 +545,7 @@ function RecordPage({
                         label="重量"
                         unit="kg"
                         value={draft.weightKg}
+                        min="-1000"
                         step="0.5"
                         invalid={draft.weightKg === ""}
                         onChange={(v) => changeDraft(exercise.id, "weightKg", v)}
@@ -682,6 +683,7 @@ function Metric({
   label,
   unit,
   value,
+  min = "0",
   step,
   invalid,
   onChange,
@@ -689,6 +691,7 @@ function Metric({
   label: string;
   unit: string;
   value: number | "";
+  min?: string;
   step: string;
   invalid: boolean;
   onChange: (value: string) => void;
@@ -699,7 +702,7 @@ function Metric({
       <div className={invalid ? "invalid" : ""}>
         <input
           type="number"
-          min="0"
+          min={min}
           step={step}
           value={value}
           required
@@ -886,8 +889,8 @@ function LineChart({
   const rawMin = Math.min(...values),
     rawMax = Math.max(...values),
     domainPadding = rawMax === rawMin ? Math.max(Math.abs(rawMax) * 0.05, 1) : 0,
-    min = Math.max(0, rawMin - domainPadding),
-    max = rawMax + domainPadding,
+    min = Math.min(0, rawMin - domainPadding),
+    max = Math.max(0, rawMax + domainPadding),
     range = max - min || 1;
   const selectedIndex = selectedDate ? points.findIndex((point) => point.date === selectedDate) : -1;
   const activeIndex = hoveredIndex ?? (selectedIndex >= 0 ? selectedIndex : null);

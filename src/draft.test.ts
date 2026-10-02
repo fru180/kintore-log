@@ -65,6 +65,10 @@ describe("isDraftComplete", () => {
     expect(isDraftComplete(completeDraft, "strength")).toBe(true);
     expect(isDraftComplete(completeDraft, "cardio")).toBe(true);
   });
+
+  it("アシスト重量の負数は入力済みと判定する", () => {
+    expect(isDraftComplete({ ...completeDraft, weightKg: -20 }, "strength")).toBe(true);
+  });
 });
 
 describe("isDraftChanged", () => {
