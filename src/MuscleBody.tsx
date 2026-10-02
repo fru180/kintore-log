@@ -16,7 +16,7 @@ import {
   selectableMuscleLabel,
   type SelectableMuscleId,
 } from "./muscleSelection";
-import { muscleLabels, type MuscleId } from "./muscles";
+import { getUntrainedMuscles, muscleLabels, type MuscleId } from "./muscles";
 
 type RecordStatus = "loading" | "ready" | "error";
 type ModelStatus = "waiting" | "loading" | "ready" | "error";
@@ -719,7 +719,6 @@ export function ExerciseMusclesModal({ exerciseName, muscles, onClose }: Exercis
       >
         <header className="modal-title exercise-muscle-modal-title">
           <div>
-            <span className="trained-muscles-kicker">EXERCISE BODY MAP</span>
             <h2 id={titleId}>{exerciseName}</h2>
           </div>
           <button
@@ -740,10 +739,6 @@ export function ExerciseMusclesModal({ exerciseName, muscles, onClose }: Exercis
             focusedMuscle={focusedMuscle}
           />
           <aside className="trained-muscles-summary">
-            <div className="muscle-legend">
-              <i aria-hidden="true" />
-              ライム色：鍛えられる筋肉
-            </div>
             <h3>鍛えられる筋肉</h3>
             <MuscleTags
               id={descriptionId}
@@ -752,9 +747,6 @@ export function ExerciseMusclesModal({ exerciseName, muscles, onClose }: Exercis
               ariaLabel={`${exerciseName}で鍛えられる筋肉`}
               onFocusMuscle={(muscle) => setFocusedMuscle((current) => (current === muscle ? null : muscle))}
             />
-            <p className="muscle-drag-hint">
-              筋肉名をタップすると該当部位が光ります。人体図の主要な筋肉をタップすると対応種目を確認できます
-            </p>
           </aside>
         </div>
 
@@ -767,19 +759,14 @@ export function ExerciseMusclesModal({ exerciseName, muscles, onClose }: Exercis
 
 export function TrainedMusclesCard({ muscles, status }: TrainedMusclesCardProps) {
   const labels = useMemo(() => muscles.map((muscle) => muscleLabels[muscle]), [muscles]);
+  const untrainedMuscles = useMemo(() => getUntrainedMuscles(muscles), [muscles]);
   const [focusedMuscle, setFocusedMuscle] = useState<MuscleId | null>(null);
-
-  useEffect(() => {
-    if (focusedMuscle && !muscles.includes(focusedMuscle)) setFocusedMuscle(null);
-  }, [focusedMuscle, muscles]);
 
   return (
     <section className="trained-muscles-card" aria-labelledby="trained-muscles-heading">
       <header className="trained-muscles-heading">
         <div>
-          <span className="trained-muscles-kicker">BODY MAP</span>
           <h2 id="trained-muscles-heading">鍛えた部位</h2>
-          <p>この日の記録から自動表示</p>
         </div>
         {status === "ready" && labels.length > 0 && (
           <span className="trained-muscles-count">{labels.length} 部位</span>
@@ -790,27 +777,47 @@ export function TrainedMusclesCard({ muscles, status }: TrainedMusclesCardProps)
         <MuscleBody muscles={muscles} focusedMuscle={focusedMuscle} />
 
         <div className="trained-muscles-summary">
-          <div className="muscle-legend">
-            <i aria-hidden="true" />
-            ライム色：鍛えた筋肉
-          </div>
           {status === "loading" ? (
             <p className="muscle-empty">記録を確認しています…</p>
           ) : status === "error" ? (
             <p className="muscle-empty error">記録を読み込めませんでした。</p>
-          ) : labels.length ? (
-            <MuscleTags
-              muscles={muscles}
-              focusedMuscle={focusedMuscle}
-              ariaLabel="鍛えた筋肉"
-              onFocusMuscle={(muscle) => setFocusedMuscle((current) => (current === muscle ? null : muscle))}
-            />
           ) : (
-            <p className="muscle-empty">この日の種目を記録すると、鍛えた筋肉がライム色で表示されます。</p>
+            <>
+              <section className="muscle-summary-group" aria-labelledby="trained-muscle-list-heading">
+                <h3 id="trained-muscle-list-heading">鍛えた筋肉</h3>
+                {labels.length ? (
+                  <MuscleTags
+                    muscles={muscles}
+                    focusedMuscle={focusedMuscle}
+                    ariaLabel="鍛えた筋肉"
+                    onFocusMuscle={(muscle) =>
+                      setFocusedMuscle((current) => (current === muscle ? null : muscle))
+                    }
+                  />
+                ) : (
+                  <p className="muscle-empty">
+                    この日の種目を記録すると、鍛えた筋肉がライム色で表示されます。
+                  </p>
+                )}
+              </section>
+
+              <section className="muscle-summary-group" aria-labelledby="untrained-muscle-list-heading">
+                <h3 id="untrained-muscle-list-heading">鍛えられていない筋肉</h3>
+                {untrainedMuscles.length ? (
+                  <MuscleTags
+                    muscles={untrainedMuscles}
+                    focusedMuscle={focusedMuscle}
+                    ariaLabel="鍛えられていない筋肉"
+                    onFocusMuscle={(muscle) =>
+                      setFocusedMuscle((current) => (current === muscle ? null : muscle))
+                    }
+                  />
+                ) : (
+                  <p className="muscle-empty">すべての対象筋肉を鍛えています。</p>
+                )}
+              </section>
+            </>
           )}
-          <p className="muscle-drag-hint">
-            筋肉名をタップすると該当部位が光ります。人体図の主要な筋肉をタップすると対応種目を確認できます
-          </p>
         </div>
       </div>
 
