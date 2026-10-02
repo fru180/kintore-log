@@ -47,6 +47,15 @@ describe("selectableMuscleId", () => {
       }),
     ).toBe("posteriorDeltoid");
   });
+
+  it("前腕の指屈筋を前腕屈筋群として判定する", () => {
+    expect(selectableMuscleId({ name: "Flexor digitorum superficialis" })).toBe("forearmFlexors");
+    expect(selectableMuscleId({ name: "Flexor digitorum profundus" })).toBe("forearmFlexors");
+  });
+
+  it("下腿の長趾屈筋を前腕屈筋群として判定しない", () => {
+    expect(selectableMuscleId({ name: "Flexor digitorum longus" })).toBeNull();
+  });
 });
 
 describe("exercisesForSelectableMuscle", () => {

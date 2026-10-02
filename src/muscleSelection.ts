@@ -69,7 +69,12 @@ const selectableMuscleDefinitions = {
   },
   forearmFlexors: {
     label: "前腕屈筋群",
-    patterns: [/Flexor Carpi/i, /Flexor Digitorum/i, /Palmaris Longus/i, /Pronator (Teres|Quadratus)/i],
+    patterns: [
+      /Flexor Carpi/i,
+      /Flexor Digitorum (Superficialis|Profundus)/i,
+      /Palmaris Longus/i,
+      /Pronator (Teres|Quadratus)/i,
+    ],
     trainingMuscles: [],
   },
   forearmExtensors: {
