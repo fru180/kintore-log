@@ -47,6 +47,10 @@ export const exerciseMuscles: Readonly<Record<string, readonly MuscleId[]>> = {
   バタフライ: ["pectoralisMajor"],
 };
 
+export function getMusclesForExercise(exerciseName: string): MuscleId[] {
+  return [...(exerciseMuscles[exerciseName] ?? [])];
+}
+
 export function getTrainedMuscles(records: Pick<WorkoutRecord, "name">[]): MuscleId[] {
   const trained = new Set<MuscleId>();
   records.forEach(({ name }) => exerciseMuscles[name]?.forEach((muscle) => trained.add(muscle)));

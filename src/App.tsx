@@ -25,7 +25,8 @@ import {
 import { api, del, patch, post } from "./api";
 import { monthLabel, shiftDay, shiftMonth, toLocalDate } from "./date";
 import { createInitialDraft, defaultDraft, isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
-import { getTrainedMuscles } from "./muscles";
+import { getMusclesForExercise, getTrainedMuscles } from "./muscles";
+import type { MuscleId } from "./muscles";
 import type { Draft, Exercise, LatestWeight, StatPoint, User, WorkoutRecord } from "./types";
 
 type Tab = "record" | "charts" | "admin";
@@ -33,6 +34,10 @@ type Notice = { message: string; kind: "success" | "error" } | null;
 
 const TrainedMusclesCard = lazy(() =>
   import("./MuscleBody").then((module) => ({ default: module.TrainedMusclesCard })),
+);
+
+const ExerciseMusclesModal = lazy(() =>
+  import("./MuscleBody").then((module) => ({ default: module.ExerciseMusclesModal })),
 );
 
 function App() {
@@ -295,7 +300,12 @@ function RecordPage({
   const [recordsDate, setRecordsDate] = useState<string | null>(null);
   const [recordsStatus, setRecordsStatus] = useState<"loading" | "ready" | "error">("loading");
   const [readinessBusyIds, setReadinessBusyIds] = useState<Set<number>>(() => new Set());
+  const [selectedExercise, setSelectedExercise] = useState<{
+    name: string;
+    muscles: MuscleId[];
+  } | null>(null);
   const loadRequestRef = useRef(0);
+  const closeExerciseMusclesModal = useCallback(() => setSelectedExercise(null), []);
 
   const load = useCallback(async () => {
     const requestId = ++loadRequestRef.current;
@@ -485,13 +495,31 @@ function RecordPage({
         {exercises.map((exercise) => {
           const draft = drafts[exercise.id] || defaultDraft;
           const record = records.get(exercise.id);
+          const exerciseTargetMuscles =
+            exercise.kind === "strength" ? getMusclesForExercise(exercise.name) : [];
           const draftComplete = isDraftComplete(draft, exercise.kind);
           const draftChanged = record ? isDraftChanged(draft, record, exercise.kind) : true;
           return (
             <article className={`exercise-row ${record ? "saved" : ""}`} key={exercise.id}>
               <div className="exercise-main">
                 <div className="exercise-title">
-                  <h2>{exercise.name}</h2>
+                  <h2>
+                    {exerciseTargetMuscles.length ? (
+                      <button
+                        className="exercise-name-button"
+                        type="button"
+                        aria-haspopup="dialog"
+                        aria-label={`${exercise.name}で鍛えられる筋肉を見る`}
+                        onClick={() =>
+                          setSelectedExercise({ name: exercise.name, muscles: exerciseTargetMuscles })
+                        }
+                      >
+                        {exercise.name}
+                      </button>
+                    ) : (
+                      exercise.name
+                    )}
+                  </h2>
                   {exercise.kind === "strength" && (
                     <button
                       className={`weight-increase-button ${exercise.readyForWeightIncrease ? "active" : ""}`}
@@ -630,6 +658,22 @@ function RecordPage({
       <Suspense fallback={<div className="trained-muscles-loading">3D人体図を準備中…</div>}>
         <TrainedMusclesCard muscles={trainedMuscles} status={trainedMusclesStatus} />
       </Suspense>
+
+      {selectedExercise && (
+        <Suspense
+          fallback={
+            <div className="modal-backdrop exercise-muscle-modal-loading" role="status">
+              3D人体図を準備中…
+            </div>
+          }
+        >
+          <ExerciseMusclesModal
+            exerciseName={selectedExercise.name}
+            muscles={selectedExercise.muscles}
+            onClose={closeExerciseMusclesModal}
+          />
+        </Suspense>
+      )}
     </section>
   );
 }

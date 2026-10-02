@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
 import { createPortal } from "react-dom";
 import * as THREE from "three";
@@ -23,6 +23,8 @@ type ModelStatus = "waiting" | "loading" | "ready" | "error";
 
 interface MuscleBodyProps {
   muscles: MuscleId[];
+  ariaContext?: string;
+  focusedMuscle?: MuscleId | null;
 }
 
 interface TrainedMusclesCardProps extends MuscleBodyProps {
@@ -50,9 +52,14 @@ function disposeObject(object: THREE.Object3D) {
   materials.forEach((material) => material.dispose());
 }
 
-function muscleBodyAriaLabel(muscles: Iterable<MuscleId>) {
+interface ExerciseMusclesModalProps extends MuscleBodyProps {
+  exerciseName: string;
+  onClose: () => void;
+}
+
+function muscleBodyAriaLabel(muscles: Iterable<MuscleId>, context: string) {
   const labels = Array.from(muscles, (muscle) => muscleLabels[muscle]);
-  const detail = labels.length ? `鍛えた筋肉: ${labels.join("、")}` : "鍛えた筋肉はありません";
+  const detail = labels.length ? `${context}: ${labels.join("、")}` : `${context}はありません`;
   return `3D人体図。${detail}。主要な筋肉をタップすると対応種目を確認できます。等倍では左右ドラッグで回転、拡大中はドラッグで表示領域を移動できます`;
 }
 
@@ -69,12 +76,13 @@ function MuscleDetailSheet({ muscle, onClose }: MuscleDetailSheetProps) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
+      event.stopPropagation();
       onClose();
     };
-    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown, true);
 
     return () => {
-      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown, true);
     };
   }, [onClose]);
 
@@ -115,12 +123,46 @@ function MuscleDetailSheet({ muscle, onClose }: MuscleDetailSheetProps) {
   );
 }
 
-function MuscleBody({ muscles }: MuscleBodyProps) {
+interface MuscleTagsProps {
+  muscles: MuscleId[];
+  focusedMuscle: MuscleId | null;
+  ariaLabel: string;
+  id?: string;
+  onFocusMuscle: (muscle: MuscleId) => void;
+}
+
+function MuscleTags({ muscles, focusedMuscle, ariaLabel, id, onFocusMuscle }: MuscleTagsProps) {
+  return (
+    <ul id={id} className="muscle-tags" aria-label={ariaLabel}>
+      {muscles.map((muscle) => {
+        const selected = focusedMuscle === muscle;
+        return (
+          <li key={muscle}>
+            <button
+              className={selected ? "selected" : ""}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onFocusMuscle(muscle)}
+            >
+              {muscleLabels[muscle]}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function MuscleBody({ muscles, ariaContext = "鍛えた筋肉", focusedMuscle = null }: MuscleBodyProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const applyHighlightRef = useRef<((active: ReadonlySet<MuscleId>) => void) | null>(null);
-  const applySelectionOutlineRef = useRef<((selected: SelectableMuscleId | null) => void) | null>(null);
+  const applySelectionOutlineRef = useRef<
+    ((selected: SelectableMuscleId | null, focused: MuscleId | null) => void) | null
+  >(null);
   const activeMusclesRef = useRef<ReadonlySet<MuscleId>>(new Set(muscles));
+  const focusedMuscleRef = useRef<MuscleId | null>(focusedMuscle);
+  const selectedMuscleRef = useRef<SelectableMuscleId | null>(null);
   const [shouldLoad, setShouldLoad] = useState(false);
   const [modelStatus, setModelStatus] = useState<ModelStatus>("waiting");
   const [progress, setProgress] = useState(0);
@@ -178,7 +220,10 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
     renderer.domElement.className = "muscle-canvas";
     renderer.domElement.tabIndex = 0;
     renderer.domElement.setAttribute("role", "img");
-    renderer.domElement.setAttribute("aria-label", muscleBodyAriaLabel(activeMusclesRef.current));
+    renderer.domElement.setAttribute(
+      "aria-label",
+      muscleBodyAriaLabel(activeMusclesRef.current, ariaContext),
+    );
     mount.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -284,10 +329,12 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
     };
     applyHighlightRef.current = applyHighlight;
 
-    const applySelectionOutline = (selected: SelectableMuscleId | null) => {
-      outlinePass.selectedObjects = selected
-        ? modelMeshes.filter(({ selectableMuscle }) => selectableMuscle === selected).map(({ mesh }) => mesh)
-        : [];
+    const applySelectionOutline = (selected: SelectableMuscleId | null, focused: MuscleId | null) => {
+      outlinePass.selectedObjects = modelMeshes
+        .filter(({ muscles: meshMuscles, selectableMuscle }) =>
+          selected ? selectableMuscle === selected : focused ? meshMuscles.includes(focused) : false,
+        )
+        .map(({ mesh }) => mesh);
       outlinePass.enabled = outlinePass.selectedObjects.length > 0;
     };
     applySelectionOutlineRef.current = applySelectionOutline;
@@ -482,6 +529,7 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
         camera.updateProjectionMatrix();
         modelGroup.add(anatomyModel);
         applyHighlight(activeMusclesRef.current);
+        applySelectionOutline(selectedMuscleRef.current, focusedMuscleRef.current);
         resize();
         setProgress(100);
         setModelStatus("ready");
@@ -519,7 +567,7 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
       applyHighlightRef.current = null;
       applySelectionOutlineRef.current = null;
     };
-  }, [shouldLoad]);
+  }, [ariaContext, shouldLoad]);
 
   useEffect(() => {
     const active = new Set(muscles);
@@ -527,13 +575,15 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
     applyHighlightRef.current?.(active);
     const canvas = mountRef.current?.querySelector("canvas");
     if (canvas) {
-      canvas.setAttribute("aria-label", muscleBodyAriaLabel(muscles));
+      canvas.setAttribute("aria-label", muscleBodyAriaLabel(muscles, ariaContext));
     }
-  }, [activeKey, muscles]);
+  }, [activeKey, ariaContext, muscles]);
 
   useEffect(() => {
-    applySelectionOutlineRef.current?.(selectedMuscle);
-  }, [selectedMuscle]);
+    selectedMuscleRef.current = selectedMuscle;
+    focusedMuscleRef.current = focusedMuscle;
+    applySelectionOutlineRef.current?.(selectedMuscle, focusedMuscle);
+  }, [focusedMuscle, selectedMuscle]);
 
   const rotate = (amount: number) => {
     const canvas = mountRef.current?.querySelector("canvas");
@@ -615,8 +665,113 @@ function MuscleBody({ muscles }: MuscleBodyProps) {
   );
 }
 
+function MuscleModelAttribution() {
+  return (
+    <p className="muscle-attribution">
+      3D model: <a href="https://www.z-anatomy.com/">Z-Anatomy</a> / BodyParts3D · web optimization by{" "}
+      <a href="https://github.com/hpfrei/body-anatomy-3d-viewer">hpfrei</a> ·{" "}
+      <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>
+    </p>
+  );
+}
+
+export function ExerciseMusclesModal({ exerciseName, muscles, onClose }: ExerciseMusclesModalProps) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [focusedMuscle, setFocusedMuscle] = useState<MuscleId | null>(null);
+  const modalId = useId();
+  const titleId = `${modalId}-title`;
+  const descriptionId = `${modalId}-description`;
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="modal-backdrop exercise-muscle-modal-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <article
+        className="panel exercise-muscle-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+      >
+        <header className="modal-title exercise-muscle-modal-title">
+          <div>
+            <span className="trained-muscles-kicker">EXERCISE BODY MAP</span>
+            <h2 id={titleId}>{exerciseName}</h2>
+          </div>
+          <button
+            ref={closeButtonRef}
+            className="icon-button"
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+          >
+            <X />
+          </button>
+        </header>
+
+        <div className="exercise-muscle-modal-content">
+          <MuscleBody
+            muscles={muscles}
+            ariaContext={`${exerciseName}で鍛えられる筋肉`}
+            focusedMuscle={focusedMuscle}
+          />
+          <aside className="trained-muscles-summary">
+            <div className="muscle-legend">
+              <i aria-hidden="true" />
+              ライム色：鍛えられる筋肉
+            </div>
+            <h3>鍛えられる筋肉</h3>
+            <MuscleTags
+              id={descriptionId}
+              muscles={muscles}
+              focusedMuscle={focusedMuscle}
+              ariaLabel={`${exerciseName}で鍛えられる筋肉`}
+              onFocusMuscle={(muscle) => setFocusedMuscle((current) => (current === muscle ? null : muscle))}
+            />
+            <p className="muscle-drag-hint">
+              筋肉名をタップすると該当部位が光ります。人体図の主要な筋肉をタップすると対応種目を確認できます
+            </p>
+          </aside>
+        </div>
+
+        <MuscleModelAttribution />
+      </article>
+    </div>,
+    document.body,
+  );
+}
+
 export function TrainedMusclesCard({ muscles, status }: TrainedMusclesCardProps) {
   const labels = useMemo(() => muscles.map((muscle) => muscleLabels[muscle]), [muscles]);
+  const [focusedMuscle, setFocusedMuscle] = useState<MuscleId | null>(null);
+
+  useEffect(() => {
+    if (focusedMuscle && !muscles.includes(focusedMuscle)) setFocusedMuscle(null);
+  }, [focusedMuscle, muscles]);
 
   return (
     <section className="trained-muscles-card" aria-labelledby="trained-muscles-heading">
@@ -632,7 +787,7 @@ export function TrainedMusclesCard({ muscles, status }: TrainedMusclesCardProps)
       </header>
 
       <div className="trained-muscles-content">
-        <MuscleBody muscles={muscles} />
+        <MuscleBody muscles={muscles} focusedMuscle={focusedMuscle} />
 
         <div className="trained-muscles-summary">
           <div className="muscle-legend">
@@ -644,25 +799,22 @@ export function TrainedMusclesCard({ muscles, status }: TrainedMusclesCardProps)
           ) : status === "error" ? (
             <p className="muscle-empty error">記録を読み込めませんでした。</p>
           ) : labels.length ? (
-            <ul className="muscle-tags" aria-label="鍛えた筋肉">
-              {labels.map((label) => (
-                <li key={label}>{label}</li>
-              ))}
-            </ul>
+            <MuscleTags
+              muscles={muscles}
+              focusedMuscle={focusedMuscle}
+              ariaLabel="鍛えた筋肉"
+              onFocusMuscle={(muscle) => setFocusedMuscle((current) => (current === muscle ? null : muscle))}
+            />
           ) : (
             <p className="muscle-empty">この日の種目を記録すると、鍛えた筋肉がライム色で表示されます。</p>
           )}
           <p className="muscle-drag-hint">
-            主要な筋肉をタップすると対応種目を確認できます。等倍は横ドラッグで回転、拡大中はドラッグで上下左右へ移動できます
+            筋肉名をタップすると該当部位が光ります。人体図の主要な筋肉をタップすると対応種目を確認できます
           </p>
         </div>
       </div>
 
-      <p className="muscle-attribution">
-        3D model: <a href="https://www.z-anatomy.com/">Z-Anatomy</a> / BodyParts3D · web optimization by{" "}
-        <a href="https://github.com/hpfrei/body-anatomy-3d-viewer">hpfrei</a> ·{" "}
-        <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>
-      </p>
+      <MuscleModelAttribution />
     </section>
   );
 }

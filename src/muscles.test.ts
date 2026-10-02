@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { exerciseMuscles, getExercisesForMuscles, getTrainedMuscles, muscleLabels } from "./muscles";
+import {
+  exerciseMuscles,
+  getExercisesForMuscles,
+  getMusclesForExercise,
+  getTrainedMuscles,
+  muscleLabels,
+} from "./muscles";
 
 describe("exerciseMuscles", () => {
   it("指定された種目と筋肉の対応を保持する", () => {
@@ -30,6 +36,28 @@ describe("getTrainedMuscles", () => {
   it("未対応種目、有酸素運動、記録なしは対象外にする", () => {
     expect(getTrainedMuscles([{ name: "チンニング" }, { name: "ランニング" }])).toEqual([]);
     expect(getTrainedMuscles([])).toEqual([]);
+  });
+});
+
+describe("getMusclesForExercise", () => {
+  it("種目に対応する筋肉を定義順で返す", () => {
+    expect(getMusclesForExercise("レッグプレス").map((id) => muscleLabels[id])).toEqual([
+      "大腿四頭筋",
+      "ハムストリング",
+      "大臀筋",
+    ]);
+  });
+
+  it("着色対象のない種目には空配列を返す", () => {
+    expect(getMusclesForExercise("チンニング")).toEqual([]);
+    expect(getMusclesForExercise("ランニング")).toEqual([]);
+    expect(getMusclesForExercise("未登録の種目")).toEqual([]);
+  });
+
+  it("呼び出し側による変更から対応表を保護する", () => {
+    const muscles = getMusclesForExercise("バタフライ");
+    muscles.length = 0;
+    expect(getMusclesForExercise("バタフライ")).toEqual(["pectoralisMajor"]);
   });
 });
 

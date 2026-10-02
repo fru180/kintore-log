@@ -253,6 +253,27 @@ select:focus-visible {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.exercise-name-button {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 2px 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dashed #66736b;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease;
+}
+.exercise-name-button:hover,
+.exercise-name-button:focus-visible {
+  color: var(--lime);
+  border-color: var(--lime);
+}
 .weight-increase-button {
   width: 28px;
   height: 28px;
@@ -653,6 +674,9 @@ select:focus-visible {
   padding: 0;
 }
 .muscle-tags li {
+  display: contents;
+}
+.muscle-tags button {
   padding: 7px 10px;
   color: #e8eddf;
   background: rgba(215, 255, 69, 0.08);
@@ -660,6 +684,22 @@ select:focus-visible {
   border-radius: 5px;
   font-size: 11px;
   font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.muscle-tags button:hover {
+  color: #fff;
+  border-color: rgba(215, 255, 69, 0.6);
+}
+.muscle-tags button.selected {
+  color: #161d18;
+  background: var(--lime);
+  border-color: var(--lime);
+  box-shadow: 0 0 18px rgba(215, 255, 69, 0.38);
 }
 .muscle-empty {
   margin: 18px 0 0;
@@ -1067,6 +1107,43 @@ select,
   background: rgba(5, 8, 6, 0.78);
   backdrop-filter: blur(8px);
 }
+.exercise-muscle-modal-backdrop {
+  z-index: 45;
+}
+.exercise-muscle-modal-loading {
+  z-index: 45;
+  color: var(--muted);
+  font-size: 11px;
+}
+.exercise-muscle-modal {
+  width: min(920px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  background:
+    radial-gradient(circle at 25% 30%, rgba(215, 255, 69, 0.06), transparent 32%),
+    linear-gradient(125deg, #202a25, #141c18 70%);
+  border-color: #3c4941;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.65);
+}
+.exercise-muscle-modal-title {
+  padding: 22px 26px 0;
+}
+.exercise-muscle-modal-title h2 {
+  margin-top: 3px;
+  font-size: 30px;
+}
+.exercise-muscle-modal-content {
+  display: grid;
+  grid-template-columns: minmax(310px, 1.15fr) minmax(240px, 0.85fr);
+  align-items: center;
+  min-height: 490px;
+  padding: 0 26px 20px;
+}
+.exercise-muscle-modal-content .trained-muscles-summary h3 {
+  margin: 18px 0 0;
+  color: #d8dfda;
+  font-size: 13px;
+}
 .timer-card {
   width: min(480px, 100%);
   max-height: calc(100vh - 30px);
@@ -1437,6 +1514,10 @@ select,
   .trained-muscles-summary {
     padding: 22px;
   }
+  .exercise-muscle-modal-content {
+    grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.85fr);
+    padding-inline: 18px;
+  }
   .add-form {
     position: static;
   }
@@ -1515,6 +1596,35 @@ select,
   }
   .muscle-drag-hint {
     margin-top: 16px;
+  }
+  .exercise-muscle-modal-backdrop {
+    align-items: end;
+    padding: 8px 0 0;
+  }
+  .exercise-muscle-modal {
+    width: 100%;
+    max-height: calc(100dvh - 8px);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 18px 18px 0 0;
+  }
+  .exercise-muscle-modal-title {
+    padding: 18px 18px 0;
+  }
+  .exercise-muscle-modal-title h2 {
+    font-size: 27px;
+  }
+  .exercise-muscle-modal-content {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding: 0 18px 18px;
+  }
+  .exercise-muscle-modal-content .muscle-stage {
+    height: 400px;
+  }
+  .exercise-muscle-modal .muscle-attribution {
+    padding-inline: 18px;
   }
   .muscle-sheet-backdrop {
     padding: 0;
