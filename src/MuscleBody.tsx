@@ -768,9 +768,6 @@ export function TrainedMusclesCard({ muscles, status }: TrainedMusclesCardProps)
         <div>
           <h2 id="trained-muscles-heading">鍛えた部位</h2>
         </div>
-        {status === "ready" && labels.length > 0 && (
-          <span className="trained-muscles-count">{labels.length} 部位</span>
-        )}
       </header>
 
       <div className="trained-muscles-content">

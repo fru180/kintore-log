@@ -451,17 +451,26 @@ select:focus-visible {
 }
 .weight-icon,
 .chart-icon {
-  width: 45px;
-  height: 45px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
   color: var(--lime);
   background: rgba(215, 255, 69, 0.1);
   border-radius: 8px;
 }
+.weight-icon svg,
+.chart-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.weight-icon {
+  color: var(--orange);
+  background: rgba(255, 129, 93, 0.1);
+}
 .weight-card h2 {
   margin: 4px 0 0;
-  font: 700 24px var(--title);
+  font: 700 18px var(--title);
 }
 .weight-card p {
   margin: 2px 0 0;
@@ -469,7 +478,7 @@ select:focus-visible {
   font-size: 11px;
 }
 .weight-card > label {
-  height: 50px;
+  height: 35px;
   display: flex;
   align-items: center;
   background: #0e1511;
@@ -478,20 +487,20 @@ select:focus-visible {
 }
 .weight-card input {
   width: 100px;
-  padding: 0 4px 0 16px;
+  padding: 0 3px 0 9px;
   color: #fff;
   background: transparent;
   border: 0;
-  font: 700 22px var(--title);
+  font: 700 16px var(--title);
 }
 .weight-card label span {
-  padding-right: 13px;
+  padding-right: 7px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 9px;
 }
 .weight-card .save-button {
-  width: 50px;
-  min-height: 50px;
+  width: 40px;
+  min-height: 36px;
 }
 
 .trained-muscles-card {
@@ -522,17 +531,7 @@ select:focus-visible {
 }
 .trained-muscles-heading h2 {
   margin: 0;
-  font: 700 28px var(--title);
-}
-.trained-muscles-count {
-  flex: 0 0 auto;
-  margin-top: 5px;
-  padding: 5px 9px;
-  color: var(--lime);
-  background: rgba(215, 255, 69, 0.08);
-  border: 1px solid rgba(215, 255, 69, 0.18);
-  border-radius: 99px;
-  font: 700 10px var(--title);
+  font: 700 18px var(--title);
 }
 .trained-muscles-content {
   display: grid;
@@ -957,14 +956,6 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-.chart-icon {
-  width: 36px;
-  height: 36px;
-}
-.chart-icon svg {
-  width: 20px;
-  height: 20px;
 }
 .chart-title h2 {
   margin: 4px 0 0;
