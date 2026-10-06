@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { api, del, patch, post } from "./api";
 import { calculateChartScale } from "./chartScale";
-import { datePosition, monthLabel, shiftDay, shiftMonth, toLocalDate } from "./date";
+import { datePosition, daysBetween, monthLabel, shiftDay, shiftMonth, toLocalDate } from "./date";
 import { createInitialDraft, defaultDraft, isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
 import { getMusclesForExercise, getTrainedMuscles } from "./muscles";
 import type { MuscleId } from "./muscles";
@@ -894,7 +894,8 @@ function LineChart({
     );
   const width = 620,
     height = 240,
-    padX = 54,
+    padLeft = 32,
+    padRight = 4,
     padY = 28;
   const { min, max, range } = calculateChartScale(values, minimumPadding);
   const selectedIndex = selectedDate ? points.findIndex((point) => point.date === selectedDate) : -1;
@@ -903,9 +904,17 @@ function LineChart({
   const firstDate = points[0].date;
   const lastDate = points.at(-1)?.date ?? firstDate;
   const coords = values.map((value, index) => ({
-    x: padX + datePosition(points[index].date, firstDate, lastDate) * (width - padX * 2),
+    x: padLeft + datePosition(points[index].date, firstDate, lastDate) * (width - padLeft - padRight),
     y: height - padY - ((value - min) / range) * (height - padY * 2),
   }));
+  const chartDayRange = daysBetween(firstDate, lastDate);
+  const axisLabelCount = Math.min(4, chartDayRange + 1);
+  const axisLabels = Array.from({ length: axisLabelCount }, (_, index) => {
+    const dayOffset = axisLabelCount === 1 ? 0 : Math.round((index * chartDayRange) / (axisLabelCount - 1));
+    const date = shiftDay(firstDate, dayOffset);
+    const x = padLeft + datePosition(date, firstDate, lastDate) * (width - padLeft - padRight);
+    return { date, x };
+  });
   return (
     <div className="chart-wrap">
       <div className="chart-summary">
@@ -925,10 +934,9 @@ function LineChart({
           const value = max - (line / 3) * (max - min);
           return (
             <g key={line}>
-              <line x1={padX} x2={width - padX} y1={y} y2={y} className="grid-line" />
-              <text x={padX - 8} y={y} className="chart-y-label">
+              <line x1={padLeft} x2={width - padRight} y1={y} y2={y} className="grid-line" />
+              <text x={padLeft - 8} y={y} className="chart-y-label">
                 {formatValue(value)}
-                {unit}
               </text>
             </g>
           );
@@ -984,8 +992,11 @@ function LineChart({
         ) : null}
       </svg>
       <div className="chart-axis">
-        <span>{points[0].date}</span>
-        <span>{points.at(-1)?.date}</span>
+        {axisLabels.map(({ date, x }) => (
+          <span key={date} style={{ left: `${(x / width) * 100}%` }}>
+            {date.slice(5).replace("-", "/")}
+          </span>
+        ))}
       </div>
     </div>
   );

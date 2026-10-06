@@ -958,9 +958,17 @@ select:focus-visible {
   align-items: center;
   gap: 12px;
 }
+.chart-icon {
+  width: 36px;
+  height: 36px;
+}
+.chart-icon svg {
+  width: 20px;
+  height: 20px;
+}
 .chart-title h2 {
   margin: 4px 0 0;
-  font: 700 23px var(--title);
+  font: 700 20px var(--title);
 }
 .chart-icon.orange {
   color: var(--orange);
@@ -1010,7 +1018,7 @@ select,
 }
 .chart-y-label {
   fill: var(--muted);
-  font-size: 10px;
+  font-size: 14px;
   text-anchor: end;
   dominant-baseline: middle;
 }
@@ -1044,9 +1052,14 @@ select,
   font-size: 9px;
 }
 .chart-axis {
-  display: flex;
-  justify-content: space-between;
-  margin: -12px 30px 0;
+  position: relative;
+  height: 11px;
+  margin-top: -12px;
+}
+.chart-axis span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 
 .timer-fab {
