@@ -988,7 +988,7 @@ select,
   max-width: 190px;
 }
 .chart-wrap {
-  margin-top: 18px;
+  margin-top: 0;
 }
 .chart-summary {
   display: flex;
@@ -1044,12 +1044,12 @@ select,
   text-anchor: middle;
 }
 .chart-tooltip-value {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
 }
 .chart-tooltip-date {
   fill: #a8b2ac;
-  font-size: 9px;
+  font-size: 11px;
 }
 .chart-axis {
   position: relative;

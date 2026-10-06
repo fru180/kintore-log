@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { api, del, patch, post } from "./api";
-import { calculateChartScale } from "./chartScale";
+import { calculateChartScale, calculateIntegerTicks } from "./chartScale";
 import { datePosition, daysBetween, monthLabel, shiftDay, shiftMonth, toLocalDate } from "./date";
 import { createInitialDraft, defaultDraft, isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
 import { getMusclesForExercise, getTrainedMuscles } from "./muscles";
@@ -898,6 +898,7 @@ function LineChart({
     padRight = 4,
     padY = 28;
   const { min, max, range } = calculateChartScale(values, minimumPadding);
+  const yTicks = calculateIntegerTicks(min, max);
   const selectedIndex = selectedDate ? points.findIndex((point) => point.date === selectedDate) : -1;
   const activeIndex = hoveredIndex ?? (selectedIndex >= 0 ? selectedIndex : null);
   const formatValue = (value: number) => Number(value.toFixed(1)).toString();
@@ -929,14 +930,13 @@ function LineChart({
         aria-label={`推移グラフ。最新値${values.at(-1)}${unit}`}
         onClick={() => setSelectedDate(null)}
       >
-        {[0, 1, 2, 3].map((line) => {
-          const y = padY + (line / 3) * (height - padY * 2);
-          const value = max - (line / 3) * (max - min);
+        {yTicks.map((value) => {
+          const y = height - padY - ((value - min) / range) * (height - padY * 2);
           return (
-            <g key={line}>
+            <g key={value}>
               <line x1={padLeft} x2={width - padRight} y1={y} y2={y} className="grid-line" />
               <text x={padLeft - 8} y={y} className="chart-y-label">
-                {formatValue(value)}
+                {value}
               </text>
             </g>
           );
@@ -1026,7 +1026,7 @@ function ChartTooltip({
         {value}
       </text>
       <text x={x + tooltipWidth / 2} y={y + 33} className="chart-tooltip-date">
-        {date}
+        {date.slice(5).replace("-", "/")}
       </text>
     </g>
   );
