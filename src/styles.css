@@ -13,6 +13,19 @@
   --lime: #d7ff45;
   --orange: #ff815d;
   --title: "Barlow Condensed", "Noto Sans JP", sans-serif;
+
+  /* Role-based typography; preserved display exceptions are documented in docs/typography.md. */
+  --font-size-micro: 8px;
+  --font-size-detail: 9px;
+  --font-size-caption: 10px;
+  --font-size-support: 11px;
+  --font-size-status: 12px;
+  --font-size-body: 13px;
+  --font-size-button-prominent: 14px;
+  --font-size-item: 15px;
+  --font-size-input: 16px;
+  --font-size-section: 18px;
+  --font-size-heading: 20px;
 }
 
 * {
@@ -96,7 +109,7 @@ select:focus-visible {
   align-items: center;
   gap: 6px;
   color: #c9d0cc;
-  font-size: 13px;
+  font-size: var(--font-size-body);
   margin: 0 6px;
 }
 .account-name > span {
@@ -144,13 +157,13 @@ select:focus-visible {
 }
 .page-heading h1 {
   margin: 7px 0 2px;
-  font: 800 clamp(34px, 5vw, 52px)/0.98 var(--title);
+  font: 800 var(--font-size-heading)/1.4 var(--title);
   letter-spacing: 0.015em;
 }
 .page-heading p {
   margin: 10px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--font-size-body);
 }
 .date-picker {
   height: 46px;
@@ -197,7 +210,7 @@ select:focus-visible {
   background: transparent;
   border: 0;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--font-size-support);
   cursor: pointer;
 }
 .calendar-toggle:hover {
@@ -249,7 +262,7 @@ select:focus-visible {
   min-width: 0;
   overflow: hidden;
   margin: 0;
-  font-size: 15px;
+  font-size: var(--font-size-item);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -315,7 +328,7 @@ select:focus-visible {
   color: var(--lime);
   background: rgba(215, 255, 69, 0.09);
   border-radius: 3px;
-  font-size: 9px;
+  font-size: var(--font-size-detail);
   font-weight: 700;
 }
 .metrics {
@@ -330,7 +343,7 @@ select:focus-visible {
   display: block;
   margin-bottom: 2px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--font-size-detail);
 }
 .metric > div {
   height: 35px;
@@ -355,7 +368,7 @@ select:focus-visible {
   color: #fff;
   background: transparent;
   border: 0;
-  font: 700 16px var(--title);
+  font: 700 var(--font-size-input) var(--title);
 }
 .metric input:focus-visible {
   outline: none;
@@ -363,13 +376,13 @@ select:focus-visible {
 .metric small {
   padding-right: 7px;
   color: #748078;
-  font-size: 9px;
+  font-size: var(--font-size-detail);
 }
 .multiply {
   align-self: center;
   margin-top: 12px;
   color: #657169;
-  font: 600 18px var(--title);
+  font: 600 var(--font-size-section) var(--title);
 }
 .row-actions {
   display: flex;
@@ -387,7 +400,7 @@ select:focus-visible {
   padding: 0 18px;
   border-radius: 7px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--font-size-body);
   cursor: pointer;
 }
 .primary {
@@ -435,7 +448,7 @@ select:focus-visible {
 }
 .big {
   min-height: 52px;
-  font-size: 14px;
+  font-size: var(--font-size-button-prominent);
 }
 
 .weight-card {
@@ -470,12 +483,12 @@ select:focus-visible {
 }
 .weight-card h2 {
   margin: 4px 0 0;
-  font: 700 18px var(--title);
+  font: 700 var(--font-size-section) var(--title);
 }
 .weight-card p {
   margin: 2px 0 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--font-size-support);
 }
 .weight-card > label {
   height: 35px;
@@ -491,12 +504,12 @@ select:focus-visible {
   color: #fff;
   background: transparent;
   border: 0;
-  font: 700 16px var(--title);
+  font: 700 var(--font-size-input) var(--title);
 }
 .weight-card label span {
   padding-right: 7px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--font-size-detail);
 }
 .weight-card .save-button {
   width: 40px;
@@ -520,7 +533,7 @@ select:focus-visible {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  font-size: 11px;
+  font-size: var(--font-size-support);
 }
 .trained-muscles-heading {
   display: flex;
@@ -531,7 +544,7 @@ select:focus-visible {
 }
 .trained-muscles-heading h2 {
   margin: 0;
-  font: 700 18px var(--title);
+  font: 700 var(--font-size-section) var(--title);
 }
 .trained-muscles-content {
   display: grid;
@@ -579,7 +592,7 @@ select:focus-visible {
   justify-items: center;
   gap: 12px;
   color: #98a39c;
-  font-size: 10px;
+  font-size: var(--font-size-caption);
   pointer-events: none;
 }
 .muscle-model-status.error {
@@ -622,7 +635,7 @@ select:focus-visible {
   background: rgba(14, 21, 17, 0.88);
   border: 1px solid #3a4740;
   border-radius: 7px;
-  font-size: 9px;
+  font-size: var(--font-size-detail);
   cursor: pointer;
   pointer-events: auto;
   backdrop-filter: blur(6px);
@@ -649,7 +662,7 @@ select:focus-visible {
 .muscle-summary-group h3 {
   margin: 0;
   color: #d9e0db;
-  font: 700 13px var(--title);
+  font: 700 var(--font-size-body) var(--title);
 }
 .muscle-summary-group .muscle-tags {
   margin-top: 12px;
@@ -671,7 +684,7 @@ select:focus-visible {
   background: rgba(215, 255, 69, 0.08);
   border: 1px solid rgba(215, 255, 69, 0.22);
   border-radius: 5px;
-  font-size: 11px;
+  font-size: var(--font-size-support);
   font-weight: 600;
   cursor: pointer;
   transition:
@@ -693,7 +706,7 @@ select:focus-visible {
 .muscle-empty {
   margin: 18px 0 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--font-size-support);
   line-height: 1.7;
 }
 .muscle-empty.error {
@@ -710,13 +723,13 @@ select:focus-visible {
 }
 .muscle-webgl-fallback small {
   color: #69766e;
-  font-size: 9px;
+  font-size: var(--font-size-detail);
 }
 .muscle-attribution {
   margin: 0;
   padding: 0 26px 17px;
   color: #5f6d65;
-  font-size: 8px;
+  font-size: var(--font-size-micro);
   line-height: 1.5;
   text-align: right;
 }
@@ -766,7 +779,7 @@ select:focus-visible {
 }
 .muscle-detail-heading span {
   color: var(--lime);
-  font: 700 9px var(--title);
+  font: 700 var(--font-size-detail) var(--title);
   letter-spacing: 0.16em;
 }
 .muscle-detail-heading h3 {
@@ -800,7 +813,7 @@ select:focus-visible {
 .muscle-detail-exercises h4 {
   margin: 0;
   color: #909d95;
-  font-size: 10px;
+  font-size: var(--font-size-caption);
   font-weight: 600;
 }
 .muscle-detail-exercises ul {
@@ -816,13 +829,13 @@ select:focus-visible {
   color: #111510;
   background: var(--lime);
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--font-size-support);
   font-weight: 800;
 }
 .muscle-detail-exercises p {
   margin: 13px 0 0;
   color: #7e8b83;
-  font-size: 11px;
+  font-size: var(--font-size-support);
 }
 @keyframes muscle-sheet-in {
   from {
@@ -862,7 +875,7 @@ select:focus-visible {
 .weekdays span {
   padding: 7px 0;
   color: #7e8a83;
-  font-size: 11px;
+  font-size: var(--font-size-support);
   text-align: center;
 }
 .weekdays span:first-child {
@@ -907,7 +920,7 @@ select:focus-visible {
   top: 5px;
   right: 7px;
   color: #77827b;
-  font-size: 8px;
+  font-size: var(--font-size-micro);
   font-style: normal;
 }
 .calendar-legend {
@@ -915,7 +928,7 @@ select:focus-visible {
   justify-content: space-between;
   margin-top: 18px;
   color: var(--muted);
-  font: 600 10px var(--title);
+  font: 600 var(--font-size-caption) var(--title);
   letter-spacing: 0.08em;
 }
 .legend-dot {
@@ -935,7 +948,7 @@ select:focus-visible {
   text-align: center;
 }
 .chart-empty p {
-  font-size: 12px;
+  font-size: var(--font-size-status);
 }
 .chart-grid {
   display: grid;
@@ -959,7 +972,7 @@ select:focus-visible {
 }
 .chart-title h2 {
   margin: 4px 0 0;
-  font: 700 20px var(--title);
+  font: 700 var(--font-size-section) var(--title);
 }
 .chart-icon.orange {
   color: var(--orange);
@@ -974,8 +987,10 @@ select,
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 0 11px;
+  font-size: var(--font-size-input);
 }
 .chart-title select {
+  font-size: var(--font-size-body);
   max-width: 190px;
 }
 .chart-wrap {
@@ -991,11 +1006,11 @@ select,
 .chart-summary b small {
   margin-left: 3px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--font-size-body);
 }
 .chart-axis {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--font-size-detail);
 }
 .chart-wrap svg {
   width: 100%;
@@ -1098,7 +1113,7 @@ select,
 .exercise-muscle-modal-loading {
   z-index: 45;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--font-size-support);
 }
 .exercise-muscle-modal {
   width: min(920px, 100%);
@@ -1127,7 +1142,7 @@ select,
 .exercise-muscle-modal-content .trained-muscles-summary h3 {
   margin: 0;
   color: #d8dfda;
-  font-size: 13px;
+  font-size: var(--font-size-body);
 }
 .timer-card {
   width: min(480px, 100%);
@@ -1143,7 +1158,7 @@ select,
 }
 .modal-title h2 {
   margin: 5px 0 0;
-  font: 700 24px var(--title);
+  font: 700 var(--font-size-heading) var(--title);
 }
 .timer-ring {
   --progress: 0deg;
@@ -1173,7 +1188,7 @@ select,
 }
 .timer-ring small {
   color: var(--lime);
-  font: 700 11px var(--title);
+  font: 700 var(--font-size-support) var(--title);
   letter-spacing: 0.18em;
 }
 .timer-ring b {
@@ -1182,7 +1197,7 @@ select,
 }
 .timer-ring span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--font-size-caption);
 }
 .timer-presets {
   display: grid;
@@ -1212,7 +1227,7 @@ select,
 .timer-note {
   margin: 14px 0 0;
   color: #758078;
-  font-size: 9px;
+  font-size: var(--font-size-detail);
   text-align: center;
 }
 
@@ -1234,7 +1249,7 @@ select,
   align-items: center;
   gap: 8px;
   margin: 0 0 5px;
-  font: 700 23px var(--title);
+  font: 700 var(--font-size-section) var(--title);
 }
 .add-form h2 svg {
   color: var(--lime);
@@ -1243,7 +1258,7 @@ select,
   display: grid;
   gap: 6px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--font-size-support);
 }
 .admin-list {
   padding: 22px;
@@ -1255,11 +1270,11 @@ select,
 }
 .admin-list-head h2 {
   margin: 0;
-  font: 700 24px var(--title);
+  font: 700 var(--font-size-section) var(--title);
 }
 .admin-list-head span {
   color: var(--lime);
-  font: 700 10px var(--title);
+  font: 700 var(--font-size-caption) var(--title);
   letter-spacing: 0.14em;
 }
 .admin-list ol {
@@ -1277,7 +1292,7 @@ select,
 .drag-index {
   width: 30px;
   color: #5f6b64;
-  font: 700 15px var(--title);
+  font: 700 var(--font-size-item) var(--title);
 }
 .admin-name {
   min-width: 0;
@@ -1289,14 +1304,14 @@ select,
 }
 .admin-name b {
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--font-size-body);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 .admin-name small {
   margin-top: 2px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--font-size-detail);
 }
 .order-buttons {
   display: flex;
@@ -1343,7 +1358,7 @@ select,
   background: transparent;
   border: 0;
   border-radius: 13px;
-  font-size: 11px;
+  font-size: var(--font-size-support);
   cursor: pointer;
 }
 .bottom-nav button.active {
@@ -1362,7 +1377,7 @@ select,
   border-radius: 7px;
   transform: translateX(-50%);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  font-size: 12px;
+  font-size: var(--font-size-status);
   font-weight: 700;
 }
 .toast.error {
@@ -1409,6 +1424,7 @@ select,
   border-radius: 8px;
 }
 .segmented button {
+  font-size: var(--font-size-body);
   min-height: 38px;
   color: var(--muted);
   background: transparent;
@@ -1429,9 +1445,10 @@ select,
   display: grid;
   gap: 7px;
   color: #aeb7b1;
-  font-size: 11px;
+  font-size: var(--font-size-support);
 }
 .auth-card input {
+  font-size: var(--font-size-input);
   min-height: 49px;
   padding: 0 13px;
   color: #fff;
@@ -1442,7 +1459,7 @@ select,
 .form-error {
   margin: 0;
   color: #ff9a85;
-  font-size: 11px;
+  font-size: var(--font-size-support);
 }
 
 @media (max-width: 820px) {
@@ -1523,9 +1540,6 @@ select,
     align-items: flex-start;
     margin-bottom: 22px;
   }
-  .page-heading h1 {
-    font-size: 38px;
-  }
   .date-picker {
     width: fit-content;
   }
@@ -1537,11 +1551,11 @@ select,
   }
   .metric input {
     padding-left: 7px;
-    font-size: 16px;
+    font-size: var(--font-size-input);
   }
   .metric small {
     padding-right: 6px;
-    font-size: 8px;
+    font-size: var(--font-size-micro);
   }
   .multiply {
     margin-inline: -1px;
