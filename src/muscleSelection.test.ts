@@ -56,6 +56,12 @@ describe("selectableMuscleId", () => {
   it("下腿の長趾屈筋を前腕屈筋群として判定しない", () => {
     expect(selectableMuscleId({ name: "Flexor digitorum longus" })).toBeNull();
   });
+
+  it("内腹斜筋と外腹斜筋を個別に判定する", () => {
+    expect(selectableMuscleId({ name: "Internal abdominal oblique muscle" })).toBe("internalObliques");
+    expect(selectableMuscleId({ name: "External abdominal oblique muscle" })).toBe("externalObliques");
+    expect(selectableMuscleId({ name: "Rectus abdominis muscle" })).toBe("rectusAbdominis");
+  });
 });
 
 describe("exercisesForSelectableMuscle", () => {
@@ -70,6 +76,8 @@ describe("exercisesForSelectableMuscle", () => {
   it("個別に対応する種目を返す", () => {
     expect(exercisesForSelectableMuscle("posteriorDeltoid")).toEqual(["リアデルト"]);
     expect(exercisesForSelectableMuscle("gluteusMedius")).toEqual(["ヒップアブダクター"]);
+    expect(exercisesForSelectableMuscle("internalObliques")).toEqual(["ロータリートルソー"]);
+    expect(exercisesForSelectableMuscle("externalObliques")).toEqual(["ロータリートルソー"]);
   });
 
   it("対応表にない主要筋群は空配列を返す", () => {

@@ -93,10 +93,15 @@ const selectableMuscleDefinitions = {
     patterns: [/Rectus Abdominis/i],
     trainingMuscles: ["rectusAbdominis"],
   },
-  obliques: {
-    label: "腹斜筋群",
-    patterns: [/(Internal|External) Abdominal Oblique/i],
-    trainingMuscles: ["internalObliques", "externalObliques"],
+  internalObliques: {
+    label: "内腹斜筋",
+    patterns: [/Internal Abdominal Oblique/i],
+    trainingMuscles: ["internalObliques"],
+  },
+  externalObliques: {
+    label: "外腹斜筋",
+    patterns: [/External Abdominal Oblique/i],
+    trainingMuscles: ["externalObliques"],
   },
   transverseAbdominis: {
     label: "腹横筋",
