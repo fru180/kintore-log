@@ -1,4 +1,5 @@
 export type User = { id: number; accountName: string; isAdmin: number };
+export type Notice = { message: string; kind: "success" | "error" } | null;
 export type Exercise = {
   id: number;
   name: string;
