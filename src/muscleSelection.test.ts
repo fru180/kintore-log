@@ -76,6 +76,7 @@ describe("exercisesForSelectableMuscle", () => {
   it("個別に対応する種目を返す", () => {
     expect(exercisesForSelectableMuscle("posteriorDeltoid")).toEqual(["リアデルト"]);
     expect(exercisesForSelectableMuscle("gluteusMedius")).toEqual(["ヒップアブダクター"]);
+    expect(exercisesForSelectableMuscle("adductors")).toEqual(["ヒップアダクター"]);
     expect(exercisesForSelectableMuscle("internalObliques")).toEqual(["ロータリートルソー"]);
     expect(exercisesForSelectableMuscle("externalObliques")).toEqual(["ロータリートルソー"]);
   });

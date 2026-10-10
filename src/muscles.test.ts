@@ -25,6 +25,12 @@ describe("exerciseMuscles", () => {
 });
 
 describe("getTrainedMuscles", () => {
+  it("ヒップアブダクターのみの記録では内転筋を鍛えた扱いにしない", () => {
+    const trained = getTrainedMuscles([{ name: "ヒップアブダクター" }]);
+    expect(trained).toEqual(["abductors"]);
+    expect(getUntrainedMuscles(trained)).toContain("adductors");
+  });
+
   it("複数種目の筋肉を表示順で重複なく集計する", () => {
     expect(
       getTrainedMuscles([
@@ -60,6 +66,11 @@ describe("getUntrainedMuscles", () => {
 });
 
 describe("getMusclesForExercise", () => {
+  it("ヒップアブダクターは外転筋、ヒップアダクターは内転筋を対象にする", () => {
+    expect(getMusclesForExercise("ヒップアブダクター")).toEqual(["abductors"]);
+    expect(getMusclesForExercise("ヒップアダクター")).toEqual(["adductors"]);
+  });
+
   it("種目に対応する筋肉を頭側からの表示順で返す", () => {
     expect(getMusclesForExercise("レッグプレス").map((id) => muscleLabels[id])).toEqual([
       "大臀筋",

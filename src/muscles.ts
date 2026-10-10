@@ -42,7 +42,7 @@ export const exerciseMuscles: Readonly<Record<string, readonly MuscleId[]>> = {
   ショルダープレス: ["deltoid", "trapezius", "triceps"],
   ラインレッグカール: ["hamstrings", "gastrocnemius"],
   レッグエクステンション: ["quadriceps"],
-  ヒップアブダクター: ["adductors", "abductors"],
+  ヒップアブダクター: ["abductors"],
   ヒップアダクター: ["adductors"],
   カーフレイズ: ["gastrocnemius", "soleus"],
   バックエクステンション: ["erectorSpinae"],
