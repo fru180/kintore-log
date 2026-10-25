@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { BarChart3, Dumbbell, LogOut, Settings, Timer as TimerIcon, UserRound } from "lucide-react";
+import { BarChart3, Dumbbell, LogOut, Timer as TimerIcon, UserRound } from "lucide-react";
 import AdminPage from "./AdminPage";
 import { api, post } from "./api";
 import AuthScreen from "./AuthScreen";
 import ChartsPage from "./ChartsPage";
 import RecordPage from "./RecordPage";
+import SettingsDropdown from "./SettingsDropdown";
 import TimerModal from "./TimerModal";
 import { toLocalDate } from "./date";
 import type { Exercise, Notice, User } from "./types";
@@ -79,13 +80,7 @@ function App() {
         </button>
         <div className="account">
           {user.isAdmin ? (
-            <button
-              className={`icon-button ${tab === "admin" ? "selected-icon" : ""}`}
-              aria-label="種目管理"
-              onClick={() => setTab("admin")}
-            >
-              <Settings size={18} />
-            </button>
+            <SettingsDropdown selected={tab === "admin"} onEditExercises={() => setTab("admin")} />
           ) : null}
           <span className="account-name">
             <UserRound size={16} />

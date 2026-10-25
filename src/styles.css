@@ -143,6 +143,39 @@ select:focus-visible {
   color: #ff9580;
 }
 
+.settings-dropdown {
+  position: relative;
+  flex: 0 0 auto;
+}
+.settings-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 160px;
+  max-width: calc(100vw - 28px);
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px #0006;
+}
+.settings-dropdown-panel button {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  font-size: var(--font-size-body);
+  cursor: pointer;
+}
+.settings-dropdown-panel button:hover,
+.settings-dropdown-panel button:focus-visible {
+  color: var(--lime);
+  background: var(--panel-2);
+}
+
 .page {
   width: min(1180px, calc(100% - 40px));
   margin: 0 auto;
