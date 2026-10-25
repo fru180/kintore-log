@@ -1266,7 +1266,7 @@ select,
 
 .admin-layout {
   display: grid;
-  grid-template-columns: 330px 1fr;
+  grid-template-columns: 280px minmax(0, 1fr);
   align-items: start;
   gap: 18px;
 }
@@ -1274,18 +1274,26 @@ select,
   position: sticky;
   top: 90px;
   display: grid;
-  gap: 14px;
-  padding: 22px;
+  gap: 10px;
+  padding: 16px;
+  min-width: 0;
 }
 .add-form h2 {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 5px;
-  font: 700 var(--font-size-section) var(--title);
+  margin: 0 0 2px;
+  font: 700 var(--font-size-item) var(--title);
 }
 .add-form h2 svg {
+  width: 18px;
+  height: 18px;
   color: var(--lime);
+}
+.add-form input,
+.add-form select {
+  width: 100%;
+  min-width: 0;
 }
 .add-form label {
   display: grid;
@@ -1363,6 +1371,42 @@ select,
 .inline-edit input {
   flex: 1;
   min-width: 100px;
+}
+
+.export-page {
+  display: grid;
+  gap: 20px;
+}
+.export-card {
+  min-width: 0;
+  padding: 24px;
+}
+.export-card h2 {
+  margin: 0 0 12px;
+}
+.export-card p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+.export-text {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.8;
+  user-select: text;
+}
+.export-download {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
 }
 
 .bottom-nav {

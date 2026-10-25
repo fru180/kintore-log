@@ -2,6 +2,24 @@ import { requireUser } from "./auth.js";
 import { ApiError, json, numberIn, readJson, validDate } from "./http.js";
 
 export async function handleWorkouts(request, env, url, path, method) {
+  if (path === "/api/export" && method === "GET") {
+    const user = await requireUser(request, env);
+    const [exercises, records] = await env.DB.batch([
+      env.DB.prepare(
+        "SELECT id, name, sort_order AS sortOrder FROM exercises WHERE kind = 'strength' ORDER BY sort_order, id",
+      ),
+      env.DB.prepare(
+        `SELECT r.exercise_id AS exerciseId, r.workout_date AS date, r.weight_kg AS weightKg
+         FROM workout_records r JOIN exercises e ON e.id = r.exercise_id
+         WHERE r.user_id = ? AND e.kind = 'strength' AND r.weight_kg IS NOT NULL
+         ORDER BY r.workout_date, r.id`,
+      ).bind(user.id),
+    ]);
+    return json({ exercises: exercises.results, records: records.results }, 200, {
+      "cache-control": "no-store",
+    });
+  }
+
   if (path === "/api/records" && method === "GET") {
     const user = await requireUser(request, env);
     const date = url.searchParams.get("date");

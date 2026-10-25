@@ -4,13 +4,14 @@ import AdminPage from "./AdminPage";
 import { api, post } from "./api";
 import AuthScreen from "./AuthScreen";
 import ChartsPage from "./ChartsPage";
+import ExportPage from "./ExportPage";
 import RecordPage from "./RecordPage";
 import SettingsDropdown from "./SettingsDropdown";
 import TimerModal from "./TimerModal";
 import { toLocalDate } from "./date";
 import type { Exercise, Notice, User } from "./types";
 
-type Tab = "record" | "charts" | "admin";
+type Tab = "record" | "charts" | "admin" | "export";
 
 function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -79,9 +80,11 @@ function App() {
           </span>
         </button>
         <div className="account">
-          {user.isAdmin ? (
-            <SettingsDropdown selected={tab === "admin"} onEditExercises={() => setTab("admin")} />
-          ) : null}
+          <SettingsDropdown
+            selected={tab === "admin" || tab === "export"}
+            onEditExercises={user.isAdmin ? () => setTab("admin") : undefined}
+            onExport={() => setTab("export")}
+          />
           <span className="account-name">
             <UserRound size={16} />
             <span title={user.accountName}>{user.accountName}</span>
@@ -110,6 +113,7 @@ function App() {
           />
         )}
         {tab === "charts" && <ChartsPage exercises={exercises} notify={setNotice} />}
+        {tab === "export" && <ExportPage />}
         {tab === "admin" && user.isAdmin ? (
           <AdminPage exercises={exercises} reload={loadExercises} notify={setNotice} />
         ) : null}

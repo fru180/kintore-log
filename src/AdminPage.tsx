@@ -58,11 +58,6 @@ export default function AdminPage({
 
   return (
     <section>
-      <div className="page-heading">
-        <div>
-          <h1>種目の管理</h1>
-        </div>
-      </div>
       <div className="admin-layout">
         <form className="panel add-form" onSubmit={add}>
           <h2>

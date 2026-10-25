@@ -4,9 +4,11 @@ import { Settings } from "lucide-react";
 export default function SettingsDropdown({
   selected,
   onEditExercises,
+  onExport,
 }: {
   selected: boolean;
-  onEditExercises: () => void;
+  onEditExercises?: () => void;
+  onExport: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -56,14 +58,25 @@ export default function SettingsDropdown({
       </button>
       {open && (
         <div className="settings-dropdown-panel" id="settings-dropdown-panel">
+          {onEditExercises && (
+            <button
+              onClick={() => {
+                setOpen(false);
+                triggerRef.current?.focus();
+                onEditExercises();
+              }}
+            >
+              種目の編集
+            </button>
+          )}
           <button
             onClick={() => {
               setOpen(false);
               triggerRef.current?.focus();
-              onEditExercises();
+              onExport();
             }}
           >
-            種目の編集
+            エクスポート
           </button>
         </div>
       )}
