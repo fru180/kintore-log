@@ -144,22 +144,16 @@
           },
           {
             "$ref": "#/components/parameters/To"
-          },
-          {
-            "$ref": "#/components/parameters/Limit"
-          },
-          {
-            "$ref": "#/components/parameters/Cursor"
           }
         ],
         "responses": {
           "200": {
-            "description": "体重のページ",
+            "description": "期間内の本人の体重を全件返す。記録がなければ空配列。",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["bodyWeights", "nextCursor"],
+                  "required": ["bodyWeights"],
                   "properties": {
                     "bodyWeights": {
                       "type": "array",
@@ -176,9 +170,6 @@
                           }
                         }
                       }
-                    },
-                    "nextCursor": {
-                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -200,7 +191,8 @@
           "503": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "description": "from/toの両端を含む最大366日。本人の保存済み体重を日付昇順で全件返す。未記録の日は省略。ページングなし。limit/cursorは受け付けず、カーソル署名キーの設定は不要。"
       }
     },
     "/exercises": {
@@ -238,6 +230,84 @@
           },
           "503": {
             "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/stats": {
+      "get": {
+        "operationId": "getExerciseStats",
+        "summary": "指定種目の記録推移と体重推移",
+        "description": "exerciseIdとfrom/toが必須。両端を含む最大366日。本人の保存済み記録だけを日付昇順で全件返す。未記録の日は省略し、0kg・補助重量の負値はそのまま返す。有酸素はdistanceKmとdurationMinutesを返す。存在しない種目・記録がない種目のexerciseは空配列（体重は種目にかかわらず返す）。ページングなし。画面のグラフは同じ形式の直近90日データを使用する。",
+        "parameters": [
+          {
+            "name": "exerciseId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "description": "/exercisesで取得した種目ID。正の整数。"
+          },
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "既存のグラフ用 /api/stats と同形式。指定種目と同期間の本人の体重。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["exercise", "bodyWeights"],
+                  "properties": {
+                    "exercise": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ExerciseStatPoint"
+                      }
+                    },
+                    "bodyWeights": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["date", "weightKg"],
+                        "properties": {
+                          "date": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "weightKg": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -279,25 +349,6 @@
         "schema": {
           "type": "string",
           "format": "date"
-        }
-      },
-      "Limit": {
-        "name": "limit",
-        "in": "query",
-        "schema": {
-          "type": "integer",
-          "default": 50,
-          "minimum": 1,
-          "maximum": 200
-        }
-      },
-      "Cursor": {
-        "name": "cursor",
-        "in": "query",
-        "description": "前ページのnextCursor。1時間有効。同一の本人・同意・API・from/to/limitに限定。",
-        "schema": {
-          "type": "string",
-          "maxLength": 4096
         }
       }
     },
@@ -486,6 +537,35 @@
             "items": {
               "$ref": "#/components/schemas/RecordDay"
             }
+          }
+        }
+      },
+      "ExerciseStatPoint": {
+        "type": "object",
+        "required": ["date", "weightKg", "reps", "sets", "distanceKm", "durationMinutes"],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "weightKg": {
+            "type": ["number", "null"],
+            "description": "kg。補助重量などの負値を含む。"
+          },
+          "reps": {
+            "type": ["integer", "null"]
+          },
+          "sets": {
+            "type": ["integer", "null"],
+            "description": "同一重量・回数として記録されたセット数"
+          },
+          "distanceKm": {
+            "type": ["number", "null"],
+            "description": "km"
+          },
+          "durationMinutes": {
+            "type": ["integer", "null"],
+            "description": "分"
           }
         }
       }

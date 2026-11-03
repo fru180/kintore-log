@@ -1,6 +1,6 @@
 import { requireUser } from "./auth.js";
 import { ApiError, json, numberIn, readJson, validDate } from "./http.js";
-import { readRecordDay } from "./read-data.js";
+import { readChartData, readRecordDay } from "./read-data.js";
 
 export async function handleWorkouts(request, env, url, path, method) {
   if (path === "/api/export" && method === "GET") {
@@ -156,28 +156,7 @@ export async function handleWorkouts(request, env, url, path, method) {
     if (!validDate(from) || !validDate(to) || from > to) {
       throw new ApiError("表示期間が正しくありません");
     }
-    let exercise = [];
-    if (Number.isInteger(exerciseId) && exerciseId > 0) {
-      const result = await env.DB.prepare(
-        `SELECT workout_date AS date, weight_kg AS weightKg, reps, sets,
-            distance_km AS distanceKm, duration_minutes AS durationMinutes
-           FROM workout_records
-           WHERE user_id = ? AND exercise_id = ? AND workout_date BETWEEN ? AND ?
-           ORDER BY workout_date`,
-      )
-        .bind(user.id, exerciseId, from, to)
-        .all();
-      exercise = result.results;
-    }
-    const weights = await env.DB.prepare(
-      `SELECT measured_date AS date, weight_kg AS weightKg
-         FROM body_weights
-         WHERE user_id = ? AND measured_date BETWEEN ? AND ?
-         ORDER BY measured_date`,
-    )
-      .bind(user.id, from, to)
-      .all();
-    return json({ exercise, bodyWeights: weights.results });
+    return json(await readChartData(env, user.id, exerciseId, from, to));
   }
 
   return null;

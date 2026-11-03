@@ -1,4 +1,3 @@
 # Local development only. Copy to .dev.vars (gitignored).
 OAUTH_ENABLED="true"
 OAUTH_ISSUER="http://127.0.0.1:5173/kintore-log"
-OAUTH_CURSOR_SECRET="local-development-only-cursor-key-change-before-production"

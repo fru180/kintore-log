@@ -25,6 +25,23 @@ export async function readRecordDay(env, userId, date) {
   return results;
 }
 
+export async function readChartData(env, userId, exerciseId, from, to) {
+  let exercise = [];
+  if (Number.isInteger(exerciseId) && exerciseId > 0) {
+    const { results } = await env.DB.prepare(
+      `SELECT workout_date AS date, weight_kg AS weightKg, reps, sets,
+         distance_km AS distanceKm, duration_minutes AS durationMinutes
+       FROM workout_records
+       WHERE user_id = ? AND exercise_id = ? AND workout_date BETWEEN ? AND ?
+       ORDER BY workout_date`,
+    )
+      .bind(userId, exerciseId, from, to)
+      .all();
+    exercise = results;
+  }
+  return { exercise, bodyWeights: await readBodyWeights(env, userId, from, to) };
+}
+
 export async function readExternalRecordDay(env, userId, date) {
   return (await readExternalRecordDays(env, userId, date, date))[0].records;
 }
@@ -51,15 +68,12 @@ export async function readExternalRecordDays(env, userId, from, to) {
   return [...days.values()];
 }
 
-export async function readBodyWeightPage(env, userId, { from, to, lastDate, lastId, limit }) {
-  return (
-    await env.DB.prepare(
-      `SELECT id, measured_date AS date, weight_kg AS weightKg FROM body_weights
-     WHERE user_id = ? AND measured_date BETWEEN ? AND ?
-     AND (measured_date > ? OR (measured_date = ? AND id > ?))
-     ORDER BY measured_date, id LIMIT ?`,
-    )
-      .bind(userId, from, to, lastDate, lastDate, lastId, limit + 1)
-      .all()
-  ).results;
+export async function readBodyWeights(env, userId, from, to) {
+  const { results } = await env.DB.prepare(
+    `SELECT measured_date AS date, weight_kg AS weightKg FROM body_weights
+     WHERE user_id = ? AND measured_date BETWEEN ? AND ? ORDER BY measured_date`,
+  )
+    .bind(userId, from, to)
+    .all();
+  return results;
 }

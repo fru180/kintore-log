@@ -70,7 +70,27 @@ npx wrangler d1 execute kintore-log --remote --command "UPDATE users SET is_admi
 
 ## 外部アプリとの連携
 
-OAuth 2.0 Authorization Code + PKCEによる読み取り専用APIを提供します。管理者は「管理者設定」で連携クライアントを登録・無効化でき、各ユーザーは「外部連携」で連携中のアプリの確認・解除ができます。APIはトークンの本人の記録だけを返します。
+OAuth 2.0 Authorization Code + PKCEによる読み取り専用APIを提供します。管理者は「管理者設定」で連携クライアントを登録・無効化・削除でき、各ユーザーは「外部連携」で連携中のアプリの確認・解除ができます。APIはトークンの本人の記録だけを返します。
+
+1. 「設定 → 管理者設定 → OAuthクライアント管理」で、連携先の名前・HTTPSのRedirect URL・シークレットの有無を登録します。
+2. 発行されたClient IDと以下の接続情報を連携先アプリに設定します。シークレットありの場合は、登録直後に一度だけ表示される値も保存します。
+3. 連携先アプリから認可を開始し、筋トレログにログインして読み取りを許可します。解除は「設定 → 外部連携」から行えます。
+
+| 設定        | 値                                                                       |
+| ----------- | ------------------------------------------------------------------------ |
+| Issuer      | `https://curiosk.com/kintore-log`                                        |
+| メタデータ  | `https://curiosk.com/.well-known/oauth-authorization-server/kintore-log` |
+| 認可URL     | `https://curiosk.com/kintore-log/oauth/authorize`                        |
+| トークンURL | `https://curiosk.com/kintore-log/oauth/token`                            |
+| スコープ    | `workouts:read`                                                          |
+| 方式        | Authorization Code + PKCE（S256必須）                                    |
+
+取得例：
+
+- 1日分：`GET /api/v1/records?date=2026-11-03`
+- 日別の期間取得：`GET /api/v1/records?from=2026-11-01&to=2026-11-03`
+- 体重：`GET /api/v1/body-weights?from=2026-09-01&to=2026-11-03`（期間内の全件。最大366日）
+- 種目別の推移：`GET /api/v1/stats?exerciseId=1&from=2026-09-01&to=2026-11-03`
 
 取得項目とAPIの形式は [OpenAPI定義](docs/external-api.openapi.json) を参照してください。
 

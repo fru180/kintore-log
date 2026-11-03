@@ -69,23 +69,32 @@ export default function OAuthClientsPanel({ notify }: { notify: (notice: Notice)
     }
   }
 
-  async function disable(client: Client) {
+  async function changeClient(client: Client, action: "disable" | "delete") {
+    const deleting = action === "delete";
     if (
       !window.confirm(
-        `${client.name}を無効化しますか？全ユーザーのこのアプリへの連携が利用できなくなります。`,
+        deleting
+          ? `${client.name}を削除しますか？全ユーザーのこのアプリへの連携と認証情報が削除されます。筋トレ記録は削除されません。この操作は取り消せません。`
+          : `${client.name}を無効化しますか？全ユーザーのこのアプリへの連携が利用できなくなります。`,
       )
     )
       return;
     setBusy(true);
     setError("");
     try {
-      await oauthMutation(`/api/admin/oauth/clients/${client.clientId}/disable`, "POST");
+      await oauthMutation(
+        `/api/admin/oauth/clients/${client.clientId}${deleting ? "" : "/disable"}`,
+        deleting ? "DELETE" : "POST",
+      );
       await reload();
       setSelectedClientId(null);
       setIssuedSecret(null);
-      notify({ message: "クライアントを無効化しました", kind: "success" });
+      notify({
+        message: deleting ? "クライアントを削除しました" : "クライアントを無効化しました",
+        kind: "success",
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "無効化できませんでした");
+      setError(e instanceof Error ? e.message : deleting ? "削除できませんでした" : "無効化できませんでした");
     } finally {
       setBusy(false);
     }
@@ -173,7 +182,8 @@ export default function OAuthClientsPanel({ notify }: { notify: (notice: Notice)
           busy={busy}
           error={error}
           onClose={closeDetails}
-          onDisable={disable}
+          onDisable={(client) => changeClient(client, "disable")}
+          onDelete={(client) => changeClient(client, "delete")}
         />
       )}
     </article>
@@ -187,6 +197,7 @@ function ClientDetails({
   error,
   onClose,
   onDisable,
+  onDelete,
 }: {
   client: Client;
   secret: string | null;
@@ -194,6 +205,7 @@ function ClientDetails({
   error: string;
   onClose: () => void;
   onDisable: (client: Client) => Promise<void>;
+  onDelete: (client: Client) => Promise<void>;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -259,11 +271,16 @@ function ClientDetails({
         )}
       </dl>
       {secret && <p>シークレットを安全な場所に保存してください。この詳細を閉じると再表示できません。</p>}
-      {!client.disabledAt && (
-        <button className="secondary danger" disabled={busy} onClick={() => onDisable(client)}>
-          クライアントを無効化
+      <div className="oauth-client-actions">
+        {!client.disabledAt && (
+          <button className="secondary danger" disabled={busy} onClick={() => onDisable(client)}>
+            クライアントを無効化
+          </button>
+        )}
+        <button className="secondary danger" disabled={busy} onClick={() => onDelete(client)}>
+          クライアントを削除
         </button>
-      )}
+      </div>
       {error && (
         <p className="form-error" role="alert">
           {error}

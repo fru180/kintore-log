@@ -165,7 +165,6 @@ describe("OAuth and external read APIs", () => {
       DB: d1Adapter(database),
       OAUTH_ENABLED: "true",
       OAUTH_ISSUER: base,
-      OAUTH_CURSOR_SECRET: "local-test-cursor-key-".repeat(3),
       ASSETS: {
         fetch: () =>
           new Response('<link rel="stylesheet" crossorigin href="/kintore-log/assets/index-test.css">'),
@@ -445,35 +444,10 @@ describe("OAuth and external read APIs", () => {
     expect(me.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("pages deterministically and rejects cursors from other users, grants, filters or tampering", async () => {
-    const a = await tokens(1);
-    const b = await tokens(2);
-    const first = await (
-      await api(a.access_token, "/body-weights?from=2026-10-01&to=2026-10-31&limit=1")
-    ).json();
-    let cursor = first.nextCursor;
-    const dates = first.bodyWeights.map((r) => r.date);
-    while (cursor) {
-      const page = await (
-        await api(
-          a.access_token,
-          `/body-weights?from=2026-10-01&to=2026-10-31&limit=1&cursor=${encodeURIComponent(cursor)}`,
-        )
-      ).json();
-      dates.push(...page.bodyWeights.map((r) => r.date));
-      cursor = page.nextCursor;
-    }
-    expect(dates).toEqual(["2026-10-01", "2026-10-02"]);
-    const query = `/body-weights?from=2026-10-01&to=2026-10-31&limit=1&cursor=${encodeURIComponent(first.nextCursor)}`;
-    expect((await api(b.access_token, query)).status).toBe(400);
-    expect((await api(a.access_token, query.replace("limit=1", "limit=2"))).status).toBe(400);
-    expect((await api(a.access_token, query + "x")).status).toBe(400);
-    expect((await api(a.access_token, query.replace("/body-weights", "/records"))).status).toBe(400);
-    const newerGrant = await tokens(1);
-    expect((await api(newerGrant.access_token, query)).status).toBe(400);
-  });
-
   it.each([
+    "",
+    "from=2026-10-01",
+    "to=2026-10-31",
     "from=2026-02-30&to=2026-03-01",
     "from=2026-10-31&to=2026-10-01",
     "from=2024-01-01&to=2026-01-01",
@@ -484,6 +458,33 @@ describe("OAuth and external read APIs", () => {
     "from=2026-10-01&from=2026-10-02&to=2026-10-31",
   ])("rejects invalid or owner-changing queries: %s", async (query) => {
     expect((await api((await tokens()).access_token, `/body-weights?${query}`)).status).toBe(400);
+  });
+
+  it("returns the entire body-weight period without a cursor key or pagination, limited to its owner", async () => {
+    const a = await tokens(1);
+    const b = await tokens(2);
+    // Insert 366 days out of order, exceeding both former page-size limits.
+    database.exec(`WITH RECURSIVE days(date) AS (
+      SELECT '2024-01-01' UNION ALL SELECT date(date, '+1 day') FROM days WHERE date < '2024-12-31'
+    ) INSERT INTO body_weights(user_id, measured_date, weight_kg)
+      SELECT 1, date, 65 FROM days ORDER BY date DESC`);
+    const query = "/body-weights?from=2024-01-01&to=2024-12-31";
+    const response = await api(a.access_token, query, { user: 2 });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const data = await response.json();
+    expect(data).not.toHaveProperty("nextCursor");
+    expect(data.bodyWeights).toHaveLength(366);
+    expect(data.bodyWeights[0]).toEqual({ date: "2024-01-01", weightKg: 65 });
+    expect(data.bodyWeights.at(-1)).toEqual({ date: "2024-12-31", weightKg: 65 });
+    expect(data.bodyWeights.map((w) => w.date)).toEqual(data.bodyWeights.map((w) => w.date).toSorted());
+    expect(data.bodyWeights.every((w) => Object.keys(w).length === 2)).toBe(true);
+    expect(await (await api(b.access_token, query)).json()).toEqual({ bodyWeights: [] });
+    expect(await (await api(a.access_token, "/body-weights?from=2026-10-01&to=2026-10-01")).json()).toEqual({
+      bodyWeights: [{ date: "2026-10-01", weightKg: 60 }],
+    });
+    for (const extra of ["limit=1", "cursor=old-cursor"])
+      expect((await api(a.access_token, `${query}&${extra}`)).status).toBe(400);
   });
 
   it("returns every exercise for one day and distinguishes zero-weight records from missing records", async () => {
@@ -569,7 +570,6 @@ describe("OAuth and external read APIs", () => {
     const token = (await tokens()).access_token;
     const leap = await (await api(token, "/records?from=2024-02-28&to=2024-03-01")).json();
     expect(leap.days.map((d) => d.date)).toEqual(["2024-02-28", "2024-02-29", "2024-03-01"]);
-    delete env.OAUTH_CURSOR_SECRET;
     const year = await (await api(token, "/records?from=2024-01-01&to=2024-12-31")).json();
     expect(year.days).toHaveLength(366);
     expect(year.days.at(-1).date).toBe("2024-12-31");
@@ -609,6 +609,75 @@ describe("OAuth and external read APIs", () => {
     "from=2026-10-01&to=2026-10-31&userId=2",
   ])("rejects invalid daily record queries: %s", async (query) => {
     expect((await api((await tokens()).access_token, `/records?${query}`)).status).toBe(400);
+  });
+
+  it("returns the same exercise and body-weight series as the app's charts, scoped to the bearer owner", async () => {
+    const a = await tokens(1);
+    const b = await tokens(2);
+    const query = "?exerciseId=1&from=2026-10-01&to=2026-10-31";
+    const response = await api(a.access_token, `/stats${query}`, { user: 2 });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const data = await response.json();
+    expect(data).toEqual(await (await call(`/api/stats${query}`, { user: 1 })).json());
+    expect(data).toEqual({
+      exercise: [
+        { date: "2026-10-01", weightKg: -10, reps: 10, sets: 3, distanceKm: null, durationMinutes: null },
+        { date: "2026-10-31", weightKg: 60, reps: 6, sets: 4, distanceKm: null, durationMinutes: null },
+      ],
+      bodyWeights: [
+        { date: "2026-10-01", weightKg: 60 },
+        { date: "2026-10-02", weightKg: 61 },
+      ],
+    });
+    expect(await (await api(b.access_token, `/stats${query}`)).json()).toEqual({
+      exercise: [
+        { date: "2026-10-01", weightKg: 999, reps: 99, sets: 9, distanceKm: null, durationMinutes: null },
+      ],
+      bodyWeights: [{ date: "2026-10-01", weightKg: 100 }],
+    });
+    const zero = await (
+      await api(a.access_token, "/stats?exerciseId=2&from=2026-10-01&to=2026-10-01")
+    ).json();
+    expect(zero.exercise).toEqual([
+      { date: "2026-10-01", weightKg: 0, reps: 8, sets: 2, distanceKm: null, durationMinutes: null },
+    ]);
+    const cardio = await (
+      await api(a.access_token, "/stats?exerciseId=16&from=2026-10-01&to=2026-10-31")
+    ).json();
+    expect(cardio.exercise).toEqual([
+      { date: "2026-10-15", weightKg: null, reps: null, sets: null, distanceKm: 5, durationMinutes: 30 },
+    ]);
+    const missing = await (
+      await api(a.access_token, "/stats?exerciseId=999999&from=2026-10-01&to=2026-10-31")
+    ).json();
+    expect(missing).toEqual({ exercise: [], bodyWeights: data.bodyWeights });
+    expect(
+      await (await api(a.access_token, "/stats?exerciseId=1&from=2020-01-01&to=2020-01-31")).json(),
+    ).toEqual({ exercise: [], bodyWeights: [] });
+    expect((await api(a.access_token, "/stats?exerciseId=1&from=2024-01-01&to=2024-12-31")).status).toBe(200);
+    expect((await call(`/api/v1/stats${query}`, { user: 1 })).status).toBe(401);
+    expect((await api(a.access_token, `/stats${query}`, { method: "POST" })).status).toBe(405);
+    database.exec("UPDATE oauth_grants SET scope = 'other:read'");
+    expect((await api(a.access_token, `/stats${query}`)).status).toBe(403);
+  });
+
+  it.each([
+    "",
+    "from=2026-10-01&to=2026-10-31",
+    "exerciseId=0",
+    "exerciseId=-1",
+    "exerciseId=1.5",
+    "exerciseId=1e2",
+    "exerciseId=9007199254740992",
+    "exerciseId=1&from=2026-02-30&to=2026-03-01",
+    "exerciseId=1&from=2026-10-02&to=2026-10-01",
+    "exerciseId=1&from=2024-01-01&to=2025-01-01",
+    "exerciseId=1&from=2026-10-01&to=2026-10-31&userId=2",
+    "exerciseId=1&exerciseId=2&from=2026-10-01&to=2026-10-31",
+    "exerciseId=1&from=2026-10-01&to=2026-10-31&limit=1",
+  ])("rejects invalid trend queries: %s", async (query) => {
+    expect((await api((await tokens()).access_token, `/stats?${query}`)).status).toBe(400);
   });
 
   it("keeps Cookie and Bearer authentication separate and external APIs read only", async () => {
@@ -682,45 +751,6 @@ describe("OAuth and external read APIs", () => {
     const other = await register();
     expect((await refresh(first.refresh_token, { client_id: other.clientId })).status).toBe(400);
     expect((await refresh(first.refresh_token)).status).toBe(200);
-  });
-
-  it("expires signed cursors even if the access credential remains valid", async () => {
-    const first = await tokens();
-    const page = await (
-      await api(first.access_token, "/body-weights?from=2026-10-01&to=2026-10-31&limit=1")
-    ).json();
-    database.prepare("UPDATE oauth_access_tokens SET expires_at = ?").run(nowSeconds() + 7200);
-    const later = Date.now() + 3601000;
-    vi.spyOn(Date, "now").mockReturnValue(later);
-    expect(
-      (
-        await api(
-          first.access_token,
-          `/body-weights?from=2026-10-01&to=2026-10-31&limit=1&cursor=${encodeURIComponent(page.nextCursor)}`,
-        )
-      ).status,
-    ).toBe(400);
-  });
-
-  it("pages body weights without exposing internal IDs and returns empty periods", async () => {
-    const first = await tokens();
-    const page = await (
-      await api(first.access_token, "/body-weights?from=2026-10-01&to=2026-10-31&limit=1")
-    ).json();
-    expect(page.bodyWeights).toEqual([{ date: "2026-10-01", weightKg: 60 }]);
-    const end = await (
-      await api(
-        first.access_token,
-        `/body-weights?from=2026-10-01&to=2026-10-31&limit=1&cursor=${encodeURIComponent(page.nextCursor)}`,
-      )
-    ).json();
-    expect(end).toEqual({ bodyWeights: [{ date: "2026-10-02", weightKg: 61 }], nextCursor: null });
-    expect(
-      await (await api(first.access_token, "/body-weights?from=2020-01-01&to=2020-01-31")).json(),
-    ).toEqual({
-      bodyWeights: [],
-      nextCursor: null,
-    });
   });
 
   it("does not accept an expired ISO session timestamp on the same calendar day", async () => {
@@ -820,6 +850,99 @@ describe("OAuth and external read APIs", () => {
     expect((await start()).status).toBe(400);
     expect((await exchange(pending)).status).toBe(401);
     expect((await refresh(a.refresh_token)).status).toBe(401);
+  });
+
+  it("restricts client deletion to administrators with valid browser mutation checks", async () => {
+    const path = `/api/admin/oauth/clients/${client.clientId}`;
+    expect((await call(path, { method: "DELETE" })).status).toBe(401);
+    expect((await mutation(path, 2, undefined, "DELETE")).status).toBe(403);
+    expect((await call(path, { user: 1, method: "DELETE" })).status).toBe(403);
+    expect(
+      (await mutation(path, 1, undefined, "DELETE", { origin: "https://attacker.example" })).status,
+    ).toBe(403);
+    expect((await mutation(path, 1, undefined, "DELETE", { "x-csrf-token": "invalid" })).status).toBe(403);
+    expect(database.prepare("SELECT count(*) AS n FROM oauth_clients").get().n).toBe(1);
+  });
+
+  it("deletes clients and all users' associated requests, grants, codes and rotated tokens, preserving other data", async () => {
+    const original = client;
+    const a = await tokens(1);
+    const b = await tokens(2);
+    const rotated = await (await refresh(a.refresh_token)).json();
+    const pendingCode = await code();
+    const pendingRequest = await consent();
+    client = await register();
+    const other = await tokens(1);
+    const counts = () =>
+      ["workout_records", "body_weights", "users"].map(
+        (table) => database.prepare(`SELECT count(*) AS n FROM ${table}`).get().n,
+      );
+    const before = counts();
+    const response = await mutation(`/api/admin/oauth/clients/${original.clientId}`, 1, undefined, "DELETE");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+    expect(counts()).toEqual(before);
+    for (const table of ["oauth_clients", "oauth_authorization_requests", "oauth_grants"])
+      expect(
+        database.prepare(`SELECT count(*) AS n FROM ${table} WHERE client_id = ?`).get(original.clientId).n,
+      ).toBe(0);
+    // Each remaining row belongs to the other client's one successful authorization.
+    for (const table of [
+      "oauth_clients",
+      "oauth_grants",
+      "oauth_authorization_codes",
+      "oauth_access_tokens",
+      "oauth_refresh_tokens",
+    ])
+      expect(database.prepare(`SELECT count(*) AS n FROM ${table}`).get().n).toBe(1);
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    for (const token of [a.access_token, b.access_token, rotated.access_token])
+      expect((await api(token)).status).toBe(401);
+    expect((await api(other.access_token)).status).toBe(200);
+    client = original;
+    expect((await start()).status).toBe(400);
+    expect((await exchange(pendingCode)).status).toBe(401);
+    expect((await refresh(rotated.refresh_token)).status).toBe(401);
+    expect((await call(`/oauth/authorize?request=${pendingRequest.request}`, { user: 1 })).status).toBe(400);
+    expect(
+      (await (await call("/api/admin/oauth/clients", { user: 1 })).json()).clients.map((c) => c.clientId),
+    ).not.toContain(original.clientId);
+    expect(
+      (await mutation(`/api/admin/oauth/clients/${original.clientId}`, 1, undefined, "DELETE")).status,
+    ).toBe(404);
+  });
+
+  it("also deletes disabled clients and clients without grants", async () => {
+    const first = client.clientId;
+    expect((await mutation(`/api/admin/oauth/clients/${first}/disable`, 1)).status).toBe(200);
+    expect((await mutation(`/api/admin/oauth/clients/${first}`, 1, undefined, "DELETE")).status).toBe(200);
+    const empty = await register();
+    expect(
+      (await mutation(`/api/admin/oauth/clients/${empty.clientId}`, 1, undefined, "DELETE")).status,
+    ).toBe(200);
+    expect(database.prepare("SELECT count(*) AS n FROM oauth_clients").get().n).toBe(0);
+  });
+
+  it("rolls back related deletions if deleting the client fails", async () => {
+    const issued = await tokens();
+    const before = [
+      "oauth_clients",
+      "oauth_authorization_requests",
+      "oauth_grants",
+      "oauth_authorization_codes",
+      "oauth_access_tokens",
+      "oauth_refresh_tokens",
+    ].map((table) => ({ table, rows: database.prepare(`SELECT * FROM ${table}`).all() }));
+    database.exec(
+      "CREATE TRIGGER prevent_client_delete BEFORE DELETE ON oauth_clients BEGIN SELECT RAISE(ABORT, 'test failure'); END;",
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(
+      (await mutation(`/api/admin/oauth/clients/${client.clientId}`, 1, undefined, "DELETE")).status,
+    ).toBe(500);
+    for (const { table, rows } of before)
+      expect(database.prepare(`SELECT * FROM ${table}`).all()).toEqual(rows);
+    expect((await api(issued.access_token)).status).toBe(200);
   });
 
   it("supports standard revocation, unknown tokens and client ownership validation", async () => {

@@ -116,5 +116,20 @@ export async function handleOAuthManagement(request, env, path, method) {
     audit("oauth.client.disabled", user.id, client[1]);
     return privateJson({ ok: true });
   }
+  const deletableClient = path.match(/^\/api\/admin\/oauth\/clients\/(cl_[a-f0-9]{64})$/);
+  if (deletableClient && method === "DELETE") {
+    const user = await requireAdmin(request, env);
+    await requireBrowserMutation(request, env);
+    const clientId = deletableClient[1];
+    // One atomic batch: grants cascade to codes and all token generations.
+    const results = await env.DB.batch([
+      env.DB.prepare("DELETE FROM oauth_authorization_requests WHERE client_id = ?").bind(clientId),
+      env.DB.prepare("DELETE FROM oauth_grants WHERE client_id = ?").bind(clientId),
+      env.DB.prepare("DELETE FROM oauth_clients WHERE client_id = ? RETURNING client_id").bind(clientId),
+    ]);
+    if (!results[2].results.length) throw new ApiError("クライアントが見つかりません", 404);
+    audit("oauth.client.deleted", user.id, clientId);
+    return privateJson({ ok: true });
+  }
   return null;
 }

@@ -33,7 +33,6 @@ const options = {
   bindings: {
     OAUTH_ENABLED: "true",
     OAUTH_ISSUER: base,
-    OAUTH_CURSOR_SECRET: "isolated-local-cursor-key-".repeat(3),
   },
 };
 const mf = new Miniflare(
@@ -221,6 +220,52 @@ try {
   ).json();
   assert.equal(leap.days.length, 366);
   assert.equal(leap.days.at(-1).date, "2024-12-31");
+  await db
+    .prepare(
+      "INSERT INTO body_weights(user_id, measured_date, weight_kg) VALUES (1, '2026-10-01', 65), (2, '2026-10-01', 100)",
+    )
+    .run();
+  const statsQuery = "?exerciseId=1&from=2026-10-01&to=2026-10-31";
+  const statsA = await call(`/api/v1/stats${statsQuery}`, null, {
+    headers: { authorization: `Bearer ${a.access_token}` },
+  });
+  assert.equal(statsA.status, 200);
+  const statsDataA = await statsA.json();
+  assert.deepEqual(statsDataA, await (await call(`/api/stats${statsQuery}`, 1)).json());
+  assert.deepEqual(
+    statsDataA.exercise.map((r) => r.weightKg),
+    [60],
+  );
+  assert.deepEqual(statsDataA.bodyWeights, [{ date: "2026-10-01", weightKg: 65 }]);
+  const statsDataB = await (
+    await call(`/api/v1/stats${statsQuery}`, null, { headers: { authorization: `Bearer ${b.access_token}` } })
+  ).json();
+  assert.deepEqual(
+    statsDataB.exercise.map((r) => r.weightKg),
+    [999],
+  );
+  assert.deepEqual(statsDataB.bodyWeights, [{ date: "2026-10-01", weightKg: 100 }]);
+  const weightsResponse = await call("/api/v1/body-weights?from=2026-10-01&to=2026-10-31", null, {
+    headers: { authorization: `Bearer ${a.access_token}` },
+  });
+  assert.equal(weightsResponse.status, 200);
+  assert.deepEqual(await weightsResponse.json(), { bodyWeights: statsDataA.bodyWeights });
+  await db
+    .prepare(
+      `WITH RECURSIVE days(date) AS (
+    SELECT '2024-01-01' UNION ALL SELECT date(date, '+1 day') FROM days WHERE date < '2024-12-31'
+  ) INSERT INTO body_weights(user_id, measured_date, weight_kg) SELECT 1, date, 65 FROM days`,
+    )
+    .run();
+  const fullWeightsResponse = await call("/api/v1/body-weights?from=2024-01-01&to=2024-12-31", null, {
+    headers: { authorization: `Bearer ${a.access_token}` },
+  });
+  assert.equal(fullWeightsResponse.status, 200);
+  const fullWeights = await fullWeightsResponse.json();
+  assert.equal(fullWeights.bodyWeights.length, 366);
+  assert.equal("nextCursor" in fullWeights, false);
+  assert.deepEqual(fullWeights.bodyWeights[0], { date: "2024-01-01", weightKg: 65 });
+  assert.deepEqual(fullWeights.bodyWeights.at(-1), { date: "2024-12-31", weightKg: 65 });
   const code = await getCode(1);
   const parallelCode = await Promise.all([exchange(code), exchange(code)]);
   assert.deepEqual(parallelCode.map((r) => r.status).sort(), [200, 400]);
@@ -263,14 +308,46 @@ try {
   assert.equal((await records(b.access_token)).status, 401);
   assert.equal((await refresh(b.refresh_token)).status, 400);
   assert.equal((await exchange(pendingCode)).status, 400);
+  const preserved = await (
+    await mutate("/api/admin/oauth/clients", 1, {
+      name: "preserved client",
+      authMethod: "none",
+      redirectUris: [callback],
+    })
+  ).json();
+  const workoutCount = (await db.prepare("SELECT count(*) AS n FROM workout_records").first()).n;
+  const deletePath = `/api/admin/oauth/clients/${clientId}`;
+  assert.equal((await mutate(deletePath, 2, undefined, "DELETE")).status, 403);
+  assert.equal((await mutate(deletePath, 1, undefined, "DELETE")).status, 200);
+  for (const table of [
+    "oauth_authorization_requests",
+    "oauth_grants",
+    "oauth_authorization_codes",
+    "oauth_access_tokens",
+    "oauth_refresh_tokens",
+  ])
+    assert.equal((await db.prepare(`SELECT count(*) AS n FROM ${table}`).first()).n, 0);
+  assert.equal((await db.prepare("SELECT count(*) AS n FROM workout_records").first()).n, workoutCount);
+  assert.equal(
+    (
+      await db
+        .prepare("SELECT count(*) AS n FROM oauth_clients WHERE client_id = ?")
+        .bind(preserved.clientId)
+        .first()
+    ).n,
+    1,
+  );
+  assert.equal((await records(b.access_token)).status, 401);
+  assert.equal((await refresh(b.refresh_token)).status, 401);
+  assert.equal((await mutate(deletePath, 1, undefined, "DELETE")).status, 404);
   console.log(
-    "PASS: real D1 owner isolation, concurrent code/refresh exchange, replay revocation, transactional rollback and disconnect",
+    "PASS: real D1 owner isolation, concurrent code/refresh exchange, replay revocation, transactional rollback, disconnect and client deletion",
   );
   if (serve) {
     serving = true;
     console.log("Isolated Worker ready on http://127.0.0.1:8787. Start Vite on 127.0.0.1:5173.");
     console.log("Local UI test accounts: oauth-test-1 (admin), oauth-test-2 / oauth-test-password");
-    console.log(`Local test client: ${clientId}`);
+    console.log(`Local test client: ${preserved.clientId}`);
     const stop = () => {
       mf.dispose().finally(() => process.exit());
     };
