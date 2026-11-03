@@ -1,23 +1,11 @@
 import { requireAdmin, requireUser } from "./auth.js";
 import { ApiError, json, readJson } from "./http.js";
+import { readExercises } from "./read-data.js";
 
 export async function handleExercises(request, env, path, method) {
   if (path === "/api/exercises" && method === "GET") {
     const user = await requireUser(request, env);
-    const { results } = await env.DB.prepare(
-      `SELECT e.id, e.name, e.kind, e.sort_order AS sortOrder,
-          CASE WHEN e.kind = 'strength' AND m.user_id IS NOT NULL THEN 1 ELSE 0 END AS readyForWeightIncrease
-         FROM exercises e
-         LEFT JOIN exercise_weight_increase_marks m
-           ON m.exercise_id = e.id AND m.user_id = ?
-         ORDER BY e.sort_order, e.id`,
-    )
-      .bind(user.id)
-      .all();
-    const exercises = results.map((exercise) => ({
-      ...exercise,
-      readyForWeightIncrease: Boolean(exercise.readyForWeightIncrease),
-    }));
+    const exercises = await readExercises(env, user.id);
     return json({ exercises });
   }
 

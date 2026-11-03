@@ -5,13 +5,14 @@ import { api, post } from "./api";
 import AuthScreen from "./AuthScreen";
 import ChartsPage from "./ChartsPage";
 import ExportPage from "./ExportPage";
+import ConnectionsPage from "./ConnectionsPage";
 import RecordPage from "./RecordPage";
 import SettingsDropdown from "./SettingsDropdown";
 import TimerModal from "./TimerModal";
 import { toLocalDate } from "./date";
 import type { Exercise, Notice, User } from "./types";
 
-type Tab = "record" | "charts" | "admin" | "export";
+type Tab = "record" | "charts" | "admin" | "export" | "connections";
 
 function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -21,6 +22,7 @@ function App() {
   const [timerStatus, setTimerStatus] = useState({ running: false, elapsed: 0 });
   const [date, setDate] = useState(toLocalDate());
   const [notice, setNotice] = useState<Notice>(null);
+  const [oauthRequest] = useState(() => new URL(window.location.href).searchParams.get("oauth_request"));
 
   const loadExercises = useCallback(async () => {
     const data = await api<{ exercises: Exercise[] }>("/api/exercises");
@@ -42,8 +44,17 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (user) loadExercises().catch((error) => setNotice({ message: error.message, kind: "error" }));
-  }, [user, loadExercises]);
+    if (user && !oauthRequest)
+      loadExercises().catch((error) => setNotice({ message: error.message, kind: "error" }));
+  }, [user, loadExercises, oauthRequest]);
+
+  useEffect(() => {
+    if (user && oauthRequest) {
+      window.location.replace(
+        `${import.meta.env.BASE_URL}oauth/authorize?request=${encodeURIComponent(oauthRequest)}`,
+      );
+    }
+  }, [user, oauthRequest]);
 
   useEffect(() => {
     if (!notice) return;
@@ -62,6 +73,7 @@ function App() {
     );
   }
   if (!user) return <AuthScreen onLogin={setUser} />;
+  if (oauthRequest) return <main className="loading-screen">連携の確認画面に移動しています…</main>;
 
   const navItems: { id: Tab; label: string; icon: typeof Dumbbell }[] = [
     { id: "record", label: "記録", icon: Dumbbell },
@@ -81,9 +93,10 @@ function App() {
         </button>
         <div className="account">
           <SettingsDropdown
-            selected={tab === "admin" || tab === "export"}
+            selected={tab === "admin" || tab === "export" || tab === "connections"}
             onEditExercises={user.isAdmin ? () => setTab("admin") : undefined}
             onExport={() => setTab("export")}
+            onConnections={() => setTab("connections")}
           />
           <span className="account-name">
             <UserRound size={16} />
@@ -114,6 +127,7 @@ function App() {
         )}
         {tab === "charts" && <ChartsPage exercises={exercises} notify={setNotice} />}
         {tab === "export" && <ExportPage />}
+        {tab === "connections" && <ConnectionsPage notify={setNotice} />}
         {tab === "admin" && user.isAdmin ? (
           <AdminPage exercises={exercises} reload={loadExercises} notify={setNotice} />
         ) : null}

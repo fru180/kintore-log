@@ -68,6 +68,12 @@ npx wrangler d1 execute kintore-log --remote --command "UPDATE users SET is_admi
 
 昇格後は一度ログアウトし、再度ログインしてください。
 
+## 外部アプリとの連携
+
+OAuth 2.0 Authorization Code + PKCEによる読み取り専用APIを提供します。管理者は「管理者設定」で連携クライアントを登録・無効化でき、各ユーザーは「外部連携」で連携中のアプリの確認・解除ができます。APIはトークンの本人の記録だけを返します。
+
+取得項目とAPIの形式は [OpenAPI定義](docs/external-api.openapi.json) を参照してください。
+
 ## 確認コマンド
 
 ```bash

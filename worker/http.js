@@ -4,7 +4,7 @@ export const json = (data, status = 200, headers = {}) =>
     headers: { "content-type": "application/json; charset=utf-8", ...headers },
   });
 
-export const fail = (message, status = 400) => json({ error: message }, status);
+export const fail = (message, status = 400, headers = {}) => json({ error: message }, status, headers);
 
 export const readJson = async (request) => {
   const type = request.headers.get("content-type") || "";

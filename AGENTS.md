@@ -1,3 +1,4 @@
 # Instruction
 作業前にこのファイルの内容を全て確認し、順守すること。
 
+UIデザインはdocs/typography.mdに従うこと

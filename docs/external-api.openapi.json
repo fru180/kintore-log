@@ -1,0 +1,494 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "筋トレログ 外部読み取りAPI",
+    "version": "1.0.0",
+    "description": "OAuth Authorization Code + PKCE S256必須。取得は本人の記録に限定。距離はkm、時間は分、重量はkg。"
+  },
+  "servers": [
+    {
+      "url": "https://curiosk.com/kintore-log/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "oauth": ["workouts:read"]
+    }
+  ],
+  "paths": {
+    "/me": {
+      "get": {
+        "operationId": "getCurrentUser",
+        "summary": "接続先の本人情報",
+        "responses": {
+          "200": {
+            "description": "本人情報",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["user"],
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "required": ["id", "accountName"],
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "accountName": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/records": {
+      "get": {
+        "operationId": "getRecords",
+        "summary": "指定日または期間内の運動記録を日付単位で取得",
+        "description": "dateで1日、またはfrom/toの両端を含む最大366日を指定。併用不可。期間指定は日付昇順のdays配列を返し、未記録の日も含む。各日について現在登録されている全種目を表示順・ID順に一度に返す。limit/cursorによる分割はしない。recordedは本人の保存済み記録の有無。0kgの記録はtrue、未記録はfalse・idと全数値項目はnull。",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "YYYY-MM-DD形式の実在する日付。date単独、またはfrom/toのペアが必須。同時指定不可。",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "期間の開始日（含む）。toも必須。dateとの併用不可。両端を含め最大366日。",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "期間の終了日（含む）。fromも必須。from以上の日付。dateとの併用不可。",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "date指定はRecordDay、from/to指定はRecordRange。各日の全種目を返し、ページング・件数打ち切りはない。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RecordDay"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RecordRange"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/body-weights": {
+      "get": {
+        "operationId": "listBodyWeights",
+        "summary": "本人の日別体重",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "体重のページ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["bodyWeights", "nextCursor"],
+                  "properties": {
+                    "bodyWeights": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["date", "weightKg"],
+                        "properties": {
+                          "date": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "weightKg": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "nextCursor": {
+                      "type": ["string", "null"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/exercises": {
+      "get": {
+        "operationId": "listExercises",
+        "summary": "共通種目一覧と本人の重量アップ候補設定",
+        "responses": {
+          "200": {
+            "description": "種目一覧",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["exercises"],
+                  "properties": {
+                    "exercises": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Exercise"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "oauth": {
+        "type": "oauth2",
+        "description": "PKCE S256必須。クライアントは管理者が登録。公開クライアントはnone、秘密を保持できるクライアントはclient_secret_basic。",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://curiosk.com/kintore-log/oauth/authorize",
+            "tokenUrl": "https://curiosk.com/kintore-log/oauth/token",
+            "refreshUrl": "https://curiosk.com/kintore-log/oauth/token",
+            "scopes": {
+              "workouts:read": "本人の筋トレ・有酸素記録、体重、種目一覧と重量アップ候補設定の読み取り"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "From": {
+        "name": "from",
+        "in": "query",
+        "required": true,
+        "description": "開始日（含む）。toまで最大366日。",
+        "schema": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "To": {
+        "name": "to",
+        "in": "query",
+        "required": true,
+        "description": "終了日（含む）。from以降。",
+        "schema": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "Cursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "前ページのnextCursor。1時間有効。同一の本人・同意・API・from/to/limitに限定。",
+        "schema": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "入力・認証・権限・レート制限・停止等のエラー。詳細はステータスとcodeで判定。",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": ["error"],
+              "properties": {
+                "error": {
+                  "type": "object",
+                  "required": ["code", "message"],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Record": {
+        "type": "object",
+        "required": [
+          "id",
+          "exerciseId",
+          "date",
+          "weightKg",
+          "reps",
+          "sets",
+          "distanceKm",
+          "durationMinutes",
+          "name",
+          "kind",
+          "recorded"
+        ],
+        "properties": {
+          "id": {
+            "type": ["integer", "null"],
+            "description": "保存済みの記録ID。未記録はnull。"
+          },
+          "exerciseId": {
+            "type": "integer"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "weightKg": {
+            "type": ["number", "null"],
+            "description": "kg。補助重量などの負値を含む。"
+          },
+          "reps": {
+            "type": ["integer", "null"]
+          },
+          "sets": {
+            "type": ["integer", "null"],
+            "description": "同一重量・回数として記録されたセット数"
+          },
+          "distanceKm": {
+            "type": ["number", "null"],
+            "description": "km"
+          },
+          "durationMinutes": {
+            "type": ["integer", "null"],
+            "description": "分"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["strength", "cardio"]
+          },
+          "recorded": {
+            "type": "boolean",
+            "description": "指定日に本人の記録が保存されているか。falseは未記録。実際の未実施を断定しない。"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "recorded": {
+                  "const": false
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "id": {
+                  "type": "null"
+                },
+                "weightKg": {
+                  "type": "null"
+                },
+                "reps": {
+                  "type": "null"
+                },
+                "sets": {
+                  "type": "null"
+                },
+                "distanceKm": {
+                  "type": "null"
+                },
+                "durationMinutes": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "id": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "Exercise": {
+        "type": "object",
+        "required": ["id", "name", "kind", "sortOrder", "readyForWeightIncrease"],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["strength", "cardio"]
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "readyForWeightIncrease": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RecordDay": {
+        "type": "object",
+        "required": ["date", "records"],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record"
+            }
+          }
+        }
+      },
+      "RecordRange": {
+        "type": "object",
+        "required": ["from", "to", "days"],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "days": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 366,
+            "description": "期間内の全日を日付昇順で返す。各日の全種目を含み、未記録の日も省略しない。",
+            "items": {
+              "$ref": "#/components/schemas/RecordDay"
+            }
+          }
+        }
+      }
+    }
+  }
+}

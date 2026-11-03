@@ -3,7 +3,16 @@
   "name": "kintore-log",
   "main": "worker/index.js",
   "compatibility_date": "2026-09-15",
+  "vars": {
+    "OAUTH_ENABLED": "true",
+    "OAUTH_ISSUER": "https://curiosk.com/kintore-log",
+  },
+  "triggers": { "crons": ["17 19 * * *"] },
   "routes": [
+    {
+      "pattern": "curiosk.com/.well-known/oauth-authorization-server/kintore-log",
+      "zone_name": "curiosk.com",
+    },
     {
       "pattern": "curiosk.com/kintore-log",
       "zone_name": "curiosk.com",
@@ -16,14 +25,19 @@
   "observability": {
     "logs": {
       "enabled": true,
-      "invocation_logs": true,
+      "invocation_logs": false,
     },
   },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/kintore-log*", "/api/*"],
+    "run_worker_first": [
+      "/kintore-log*",
+      "/api/*",
+      "/oauth/*",
+      "/.well-known/oauth-authorization-server/kintore-log",
+    ],
   },
   "d1_databases": [
     {

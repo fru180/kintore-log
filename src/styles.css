@@ -39,7 +39,8 @@ body {
 }
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 button {
@@ -47,9 +48,49 @@ button {
 }
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--lime);
   outline-offset: 2px;
+}
+
+.oauth-consent-page {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  font-size: var(--font-size-body);
+}
+.oauth-consent-page main {
+  width: 100%;
+  max-width: 480px;
+  min-width: 0;
+  padding: 22px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.oauth-consent-page h1 {
+  margin: 0;
+  font-size: var(--font-size-heading);
+  line-height: 1.4;
+}
+.oauth-consent-page p,
+.oauth-consent-page li {
+  line-height: 1.8;
+}
+.oauth-consent-page strong {
+  overflow-wrap: anywhere;
+}
+.oauth-consent-page form {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+.oauth-consent-page button {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
 }
 
 .app-shell {
@@ -449,6 +490,15 @@ select:focus-visible {
   color: #e7ebe8;
   background: #222d27;
   border: 1px solid #3a4740;
+}
+.secondary.danger {
+  color: #fff;
+  background: #b93832;
+  border-color: #b93832;
+}
+.secondary.danger:hover:not(:disabled) {
+  background: #ce433c;
+  border-color: #ce433c;
 }
 .primary:disabled,
 .secondary:disabled {
@@ -1013,7 +1063,9 @@ select:focus-visible {
 }
 select,
 .add-form input,
-.inline-edit input {
+.inline-edit input,
+.oauth-client-form input,
+.oauth-client-form textarea {
   min-height: 42px;
   color: #eef2ef;
   background: #111814;
@@ -1409,6 +1461,158 @@ select,
   max-width: 100%;
 }
 
+.oauth-panel {
+  padding: 22px;
+  min-width: 0;
+  font-size: var(--font-size-body);
+}
+.admin-layout + .oauth-panel {
+  margin-top: 18px;
+}
+.oauth-panel > h1 {
+  margin: 0;
+  font: 700 var(--font-size-heading)/1.4 var(--title);
+}
+.oauth-panel > h2 {
+  margin: 0;
+  font: 700 var(--font-size-section)/1.4 var(--title);
+}
+.oauth-panel h3 {
+  margin: 20px 0 10px;
+  font: 700 var(--font-size-item)/1.4 var(--title);
+}
+.oauth-panel p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+.oauth-panel .form-error {
+  color: #ff9a85;
+  font-size: var(--font-size-status);
+}
+.oauth-panel .oauth-status {
+  font-size: var(--font-size-status);
+}
+.oauth-client-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px 12px;
+  margin-block: 14px;
+}
+.oauth-client-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--font-size-support);
+}
+.oauth-client-form .oauth-redirect-field {
+  grid-column: 1 / -1;
+}
+.oauth-client-form > button {
+  grid-column: 3;
+  grid-row: 1;
+}
+.oauth-client-form input,
+.oauth-client-form select,
+.oauth-client-form textarea {
+  width: 100%;
+  min-width: 0;
+}
+.oauth-client-form textarea {
+  resize: vertical;
+  padding: 8px 11px;
+  line-height: 1.5;
+}
+.oauth-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.oauth-items li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding-block: 12px;
+}
+.oauth-items li + li {
+  border-top: 1px solid var(--line);
+}
+.oauth-items li:last-child {
+  padding-bottom: 0;
+}
+.oauth-items p {
+  margin: 4px 0 0;
+}
+.oauth-items li > div {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.oauth-items h2,
+.oauth-items h4 {
+  margin: 0;
+  font: 700 var(--font-size-item)/1.4 var(--title);
+}
+.oauth-items h4 small {
+  font:
+    400 var(--font-size-detail)/1.4 "Noto Sans JP",
+    sans-serif;
+}
+.oauth-panel code {
+  font-size: var(--font-size-body);
+}
+.oauth-panel dd {
+  margin: 4px 0 12px;
+  overflow-wrap: anywhere;
+}
+.oauth-panel dt {
+  color: var(--muted);
+  font-size: var(--font-size-support);
+}
+.oauth-client-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.oauth-client-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 54px;
+  padding-block: 8px;
+  border-top: 1px solid var(--line);
+}
+.oauth-client-list li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.oauth-client-list .icon-button {
+  flex: 0 0 auto;
+}
+.oauth-client-dialog {
+  width: min(520px, calc(100% - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  color: inherit;
+}
+.oauth-client-dialog::backdrop {
+  background: rgba(5, 8, 6, 0.78);
+  backdrop-filter: blur(8px);
+}
+.oauth-dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.oauth-dialog-heading h2 {
+  margin: 0;
+  font: 700 var(--font-size-heading)/1.4 var(--title);
+}
+
 .bottom-nav {
   position: fixed;
   z-index: 21;
@@ -1540,6 +1744,14 @@ select,
 }
 
 @media (max-width: 820px) {
+  .oauth-client-form {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .oauth-client-form > button {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    justify-self: end;
+  }
   .page {
     width: min(100% - 24px, 680px);
     padding-top: 12px;
@@ -1607,6 +1819,9 @@ select,
 }
 
 @media (max-width: 540px) {
+  .oauth-client-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .account-name svg {
     display: none;
   }
@@ -1749,7 +1964,8 @@ select,
   .timer-ring b {
     font-size: 56px;
   }
-  .admin-list {
+  .admin-list,
+  .oauth-panel {
     padding: 14px;
   }
   .order-buttons {

@@ -5,10 +5,12 @@ export default function SettingsDropdown({
   selected,
   onEditExercises,
   onExport,
+  onConnections,
 }: {
   selected: boolean;
   onEditExercises?: () => void;
   onExport: () => void;
+  onConnections: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -66,9 +68,18 @@ export default function SettingsDropdown({
                 onEditExercises();
               }}
             >
-              種目の編集
+              管理者設定
             </button>
           )}
+          <button
+            onClick={() => {
+              setOpen(false);
+              triggerRef.current?.focus();
+              onConnections();
+            }}
+          >
+            外部連携
+          </button>
           <button
             onClick={() => {
               setOpen(false);

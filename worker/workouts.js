@@ -1,5 +1,6 @@
 import { requireUser } from "./auth.js";
 import { ApiError, json, numberIn, readJson, validDate } from "./http.js";
+import { readRecordDay } from "./read-data.js";
 
 export async function handleWorkouts(request, env, url, path, method) {
   if (path === "/api/export" && method === "GET") {
@@ -24,15 +25,7 @@ export async function handleWorkouts(request, env, url, path, method) {
     const user = await requireUser(request, env);
     const date = url.searchParams.get("date");
     if (!validDate(date)) throw new ApiError("日付が正しくありません");
-    const { results } = await env.DB.prepare(
-      `SELECT r.id, r.exercise_id AS exerciseId, r.workout_date AS date, r.weight_kg AS weightKg,
-          r.reps, r.sets, r.distance_km AS distanceKm, r.duration_minutes AS durationMinutes,
-          e.name, e.kind
-         FROM workout_records r JOIN exercises e ON e.id = r.exercise_id
-         WHERE r.user_id = ? AND r.workout_date = ? ORDER BY e.sort_order`,
-    )
-      .bind(user.id, date)
-      .all();
+    const results = await readRecordDay(env, user.id, date);
     const bodyWeight = await env.DB.prepare(
       "SELECT weight_kg AS weightKg FROM body_weights WHERE user_id = ? AND measured_date = ?",
     )

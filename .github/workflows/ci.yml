@@ -22,4 +22,5 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm test
+      - run: npm run test:oauth:d1
       - run: npm run build

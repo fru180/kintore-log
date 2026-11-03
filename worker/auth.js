@@ -1,4 +1,5 @@
 import { ApiError, json, readJson } from "./http.js";
+import { rateLimit } from "./oauth-security.js";
 
 const encoder = new TextEncoder();
 const SESSION_DAYS = 30;
@@ -21,11 +22,17 @@ async function passwordHash(password, saltHex) {
   );
 }
 
-function cookieValue(request, name) {
+export function cookieValue(request, name) {
   const cookies = request.headers.get("cookie") || "";
   for (const part of cookies.split(";")) {
     const [key, ...value] = part.trim().split("=");
-    if (key === name) return decodeURIComponent(value.join("="));
+    if (key === name) {
+      try {
+        return decodeURIComponent(value.join("="));
+      } catch {
+        return null;
+      }
+    }
   }
   return null;
 }
@@ -42,7 +49,7 @@ export async function currentUser(request, env) {
   return env.DB.prepare(
     `SELECT users.id, users.account_name AS accountName, users.is_admin AS isAdmin
      FROM sessions JOIN users ON users.id = sessions.user_id
-     WHERE sessions.token_hash = ? AND sessions.expires_at > datetime('now')`,
+     WHERE sessions.token_hash = ? AND julianday(sessions.expires_at) > julianday('now')`,
   )
     .bind(tokenHash)
     .first();
@@ -90,6 +97,7 @@ export async function handleAuth(request, env, path, method) {
   }
 
   if (path === "/api/auth/login" && method === "POST") {
+    await rateLimit(request, env, "auth.login", 30);
     const body = await readJson(request);
     const accountName = String(body.accountName || "").trim();
     const password = String(body.password || "");

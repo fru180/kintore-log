@@ -19,3 +19,12 @@ export const patch = <T>(path: string, body: unknown) =>
   api<T>(path, { method: "PATCH", body: JSON.stringify(body) });
 
 export const del = <T>(path: string) => api<T>(path, { method: "DELETE" });
+
+export async function oauthMutation<T>(path: string, method: "POST" | "DELETE", body?: unknown): Promise<T> {
+  const { csrfToken } = await api<{ csrfToken: string }>("/api/oauth/csrf");
+  return api<T>(path, {
+    method,
+    headers: { "x-csrf-token": csrfToken },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}

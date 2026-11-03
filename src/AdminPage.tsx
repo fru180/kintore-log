@@ -2,6 +2,7 @@ import { type FormEvent, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { del, patch, post } from "./api";
 import type { Exercise, Notice } from "./types";
+import OAuthClientsPanel from "./OAuthClientsPanel";
 
 export default function AdminPage({
   exercises,
@@ -132,6 +133,7 @@ export default function AdminPage({
           </ol>
         </article>
       </div>
+      <OAuthClientsPanel notify={notify} />
     </section>
   );
 }
