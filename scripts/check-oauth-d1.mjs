@@ -231,12 +231,13 @@ try {
   });
   assert.equal(statsA.status, 200);
   const statsDataA = await statsA.json();
-  assert.deepEqual(statsDataA, await (await call(`/api/stats${statsQuery}`, 1)).json());
+  assert.deepEqual(statsDataA, {
+    exercise: (await (await call(`/api/stats${statsQuery}`, 1)).json()).exercise,
+  });
   assert.deepEqual(
     statsDataA.exercise.map((r) => r.weightKg),
     [60],
   );
-  assert.deepEqual(statsDataA.bodyWeights, [{ date: "2026-10-01", weightKg: 65 }]);
   const statsDataB = await (
     await call(`/api/v1/stats${statsQuery}`, null, { headers: { authorization: `Bearer ${b.access_token}` } })
   ).json();
@@ -244,12 +245,84 @@ try {
     statsDataB.exercise.map((r) => r.weightKg),
     [999],
   );
-  assert.deepEqual(statsDataB.bodyWeights, [{ date: "2026-10-01", weightKg: 100 }]);
-  const weightsResponse = await call("/api/v1/body-weights?from=2026-10-01&to=2026-10-31", null, {
-    headers: { authorization: `Bearer ${a.access_token}` },
+  assert.deepEqual(Object.keys(statsDataB), ["exercise"]);
+  await db
+    .prepare(
+      `INSERT INTO body_composition_records(user_id, measured_date, metric, value) VALUES
+    (1, '2026-09-30', 'heightCm', 170), (1, '2026-10-01', 'bodyFatPercent', 0),
+    (1, '2026-10-01', 'muscleMassKg', 45), (1, '2026-10-01', 'visceralFatLevel', 3.5),
+    (1, '2026-10-01', 'basalMetabolismKcal', 1500), (1, '2026-10-02', 'heightCm', 175),
+    (1, '2026-11-01', 'heightCm', 180), (2, '2026-09-30', 'heightCm', 180)`,
+    )
+    .run();
+  const emptyBodyComposition = {
+    weightKg: null,
+    heightCm: null,
+    bmi: null,
+    bodyFatPercent: null,
+    muscleMassKg: null,
+    visceralFatLevel: null,
+    basalMetabolismKcal: null,
+  };
+  const compositionRequest = (path, token = a.access_token) =>
+    call(`/api/v1${path}`, null, { headers: { authorization: `Bearer ${token}` } });
+  const day = await (await compositionRequest("/body-composition?date=2026-10-01")).json();
+  assert.deepEqual(day, {
+    date: "2026-10-01",
+    bodyComposition: {
+      ...emptyBodyComposition,
+      weightKg: 65,
+      bmi: 22.5,
+      bodyFatPercent: 0,
+      muscleMassKg: 45,
+      visceralFatLevel: 3.5,
+      basalMetabolismKcal: 1500,
+    },
   });
-  assert.equal(weightsResponse.status, 200);
-  assert.deepEqual(await weightsResponse.json(), { bodyWeights: statsDataA.bodyWeights });
+  const bodyRange = await (
+    await compositionRequest("/body-composition?from=2026-10-01&to=2026-10-03")
+  ).json();
+  assert.deepEqual(bodyRange.days, [
+    day,
+    { date: "2026-10-02", bodyComposition: { ...emptyBodyComposition, heightCm: 175, bmi: 21.2 } },
+    { date: "2026-10-03", bodyComposition: emptyBodyComposition },
+  ]);
+  const bodyStats = await (
+    await compositionRequest("/body-composition/stats?from=2026-10-01&to=2026-10-03")
+  ).json();
+  assert.deepEqual(bodyStats, {
+    bodyComposition: bodyRange.days
+      .slice(0, 2)
+      .map(({ date, bodyComposition }) => ({ date, ...bodyComposition })),
+  });
+  const otherBody = await (
+    await compositionRequest("/body-composition?date=2026-10-01", b.access_token)
+  ).json();
+  assert.deepEqual(otherBody.bodyComposition, { ...emptyBodyComposition, weightKg: 100, bmi: 30.9 });
+  await db
+    .prepare(
+      "UPDATE body_composition_records SET value = 175 WHERE user_id = 1 AND measured_date = '2026-09-30'",
+    )
+    .run();
+  assert.equal(
+    (await (await compositionRequest("/body-composition?date=2026-10-01")).json()).bodyComposition.bmi,
+    21.2,
+  );
+  await db
+    .prepare("DELETE FROM body_composition_records WHERE user_id = 1 AND measured_date < '2026-10-01'")
+    .run();
+  assert.equal(
+    (await (await compositionRequest("/body-composition?date=2026-10-01")).json()).bodyComposition.bmi,
+    null,
+  );
+  assert.equal((await compositionRequest("/body-weights?from=2026-10-01&to=2026-10-31")).status, 404);
+  for (const path of [
+    "/body-composition?date=2026-10-01&from=2026-10-01",
+    "/body-composition?from=2024-01-01&to=2025-01-01",
+    "/body-composition/stats?from=2026-10-01&to=2026-10-31&metric=bmi",
+  ]) {
+    assert.equal((await compositionRequest(path)).status, 400);
+  }
   await db
     .prepare(
       `WITH RECURSIVE days(date) AS (
@@ -257,15 +330,25 @@ try {
   ) INSERT INTO body_weights(user_id, measured_date, weight_kg) SELECT 1, date, 65 FROM days`,
     )
     .run();
-  const fullWeightsResponse = await call("/api/v1/body-weights?from=2024-01-01&to=2024-12-31", null, {
-    headers: { authorization: `Bearer ${a.access_token}` },
+  const fullResponse = await compositionRequest("/body-composition?from=2024-01-01&to=2024-12-31");
+  assert.equal(fullResponse.status, 200);
+  const full = await fullResponse.json();
+  assert.equal(full.days.length, 366);
+  assert.equal("nextCursor" in full, false);
+  assert.deepEqual(full.days[0], {
+    date: "2024-01-01",
+    bodyComposition: { ...emptyBodyComposition, weightKg: 65 },
   });
-  assert.equal(fullWeightsResponse.status, 200);
-  const fullWeights = await fullWeightsResponse.json();
-  assert.equal(fullWeights.bodyWeights.length, 366);
-  assert.equal("nextCursor" in fullWeights, false);
-  assert.deepEqual(fullWeights.bodyWeights[0], { date: "2024-01-01", weightKg: 65 });
-  assert.deepEqual(fullWeights.bodyWeights.at(-1), { date: "2024-12-31", weightKg: 65 });
+  assert.deepEqual(full.days.at(-1), {
+    date: "2024-12-31",
+    bodyComposition: { ...emptyBodyComposition, weightKg: 65 },
+  });
+  const fullStats = await (
+    await compositionRequest("/body-composition/stats?from=2024-01-01&to=2024-12-31")
+  ).json();
+  assert.equal(fullStats.bodyComposition.length, 366);
+  // Leave the preview server with its original fixture; these assertions must not seed UI defaults.
+  await db.prepare("DELETE FROM body_composition_records").run();
   const code = await getCode(1);
   const parallelCode = await Promise.all([exchange(code), exchange(code)]);
   assert.deepEqual(parallelCode.map((r) => r.status).sort(), [200, 400]);
@@ -341,7 +424,7 @@ try {
   assert.equal((await refresh(b.refresh_token)).status, 401);
   assert.equal((await mutate(deletePath, 1, undefined, "DELETE")).status, 404);
   console.log(
-    "PASS: real D1 owner isolation, concurrent code/refresh exchange, replay revocation, transactional rollback, disconnect and client deletion",
+    "PASS: real D1 body-composition days/trends/BMI, exercise-only trends, owner isolation, concurrent code/refresh exchange, replay revocation, transactional rollback, disconnect and client deletion",
   );
   if (serve) {
     serving = true;

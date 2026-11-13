@@ -7,11 +7,11 @@ import {
   ChevronRight,
   ChevronUp,
   Flame,
-  Weight,
   X,
 } from "lucide-react";
 import { api, del, patch, post } from "./api";
 import CalendarPage from "./CalendarPage";
+import Metric from "./MetricInput";
 import { shiftDay } from "./date";
 import { createInitialDraft, defaultDraft, isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
 import { getMusclesForExercise, getTrainedMuscles, type MuscleId } from "./muscles";
@@ -40,8 +40,7 @@ export default function RecordPage({
 }) {
   const [records, setRecords] = useState<Map<number, WorkoutRecord>>(new Map());
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
-  const [bodyWeight, setBodyWeight] = useState("");
-  const [busyId, setBusyId] = useState<number | string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [recordsDate, setRecordsDate] = useState<string | null>(null);
   const [recordsStatus, setRecordsStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -60,14 +59,12 @@ export default function RecordPage({
     try {
       const data = await api<{
         records: WorkoutRecord[];
-        bodyWeight: number | null;
         latestWeights: LatestWeight[];
       }>(`/api/records?date=${date}`);
       if (requestId !== loadRequestRef.current) return;
       const map = new Map(data.records.map((record) => [record.exerciseId, record]));
       const latestWeights = new Map(data.latestWeights.map((item) => [item.exerciseId, item.weightKg]));
       setRecords(map);
-      setBodyWeight(data.bodyWeight === null ? "" : String(data.bodyWeight));
       const next: Record<number, Draft> = {};
       exercises.forEach((exercise) => {
         const stored = localStorage.getItem(`kintore-default-${exercise.id}`);
@@ -167,23 +164,6 @@ export default function RecordPage({
       notify({ message: `${exercise.name}の記録を取り消しました`, kind: "success" });
     } catch (e) {
       notify({ message: e instanceof Error ? e.message : "取り消しできませんでした", kind: "error" });
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const saveBodyWeight = async () => {
-    const value = Number(bodyWeight);
-    setBusyId("weight");
-    try {
-      if (bodyWeight === "") await del(`/api/body-weight?date=${date}`);
-      else await post("/api/body-weight", { date, weightKg: value });
-      notify({
-        message: bodyWeight === "" ? "体重記録を削除しました" : "体重を記録しました",
-        kind: "success",
-      });
-    } catch (e) {
-      notify({ message: e instanceof Error ? e.message : "保存できませんでした", kind: "error" });
     } finally {
       setBusyId(null);
     }
@@ -372,36 +352,6 @@ export default function RecordPage({
         })}
       </div>
 
-      <article className="weight-card">
-        <div className="weight-icon">
-          <Weight />
-        </div>
-        <div>
-          <h2>体重</h2>
-        </div>
-        <label>
-          <input
-            type="number"
-            min="20"
-            max="500"
-            step="0.1"
-            placeholder="--.-"
-            value={bodyWeight}
-            onChange={(e) => setBodyWeight(e.target.value)}
-          />
-          <span>kg</span>
-        </label>
-        <button
-          className="primary save-button"
-          disabled={busyId === "weight"}
-          onClick={saveBodyWeight}
-          aria-label="体重を記録"
-          title="記録"
-        >
-          <Check size={18} />
-        </button>
-      </article>
-
       <Suspense fallback={<div className="trained-muscles-loading">3D人体図を準備中…</div>}>
         <TrainedMusclesCard muscles={trainedMuscles} status={trainedMusclesStatus} />
       </Suspense>
@@ -422,41 +372,5 @@ export default function RecordPage({
         </Suspense>
       )}
     </section>
-  );
-}
-
-function Metric({
-  label,
-  unit,
-  value,
-  min = "0",
-  step,
-  invalid,
-  onChange,
-}: {
-  label: string;
-  unit: string;
-  value: number | "";
-  min?: string;
-  step: string;
-  invalid: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="metric">
-      <span>{label}</span>
-      <div className={invalid ? "invalid" : ""}>
-        <input
-          type="number"
-          min={min}
-          step={step}
-          value={value}
-          required
-          aria-invalid={invalid}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <small>{unit}</small>
-      </div>
-    </label>
   );
 }

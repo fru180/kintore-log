@@ -9,12 +9,12 @@ import {
   assertSingleParams,
 } from "./oauth-security.js";
 import {
-  readBodyWeights,
-  readChartData,
+  readExerciseStats,
   readExercises,
   readExternalRecordDay,
   readExternalRecordDays,
 } from "./read-data.js";
+import { readBodyCompositionPoints, readExternalBodyCompositionDays } from "./body-composition.js";
 
 class ExternalError extends Error {
   constructor(code, message, status) {
@@ -55,6 +55,14 @@ function realDate(value) {
   );
 }
 
+function requirePeriod(url) {
+  const from = url.searchParams.get("from");
+  const to = url.searchParams.get("to");
+  if (!realDate(from) || !realDate(to) || from > to || (Date.parse(to) - Date.parse(from)) / 86400000 >= 366)
+    throw new ApiError("from/toは両端を含む366日以内の実在する日付を指定してください");
+  return { from, to };
+}
+
 export async function handleExternalApi(request, env, url, path) {
   try {
     ensureEnabled(env);
@@ -66,17 +74,18 @@ export async function handleExternalApi(request, env, url, path) {
     const allowed = [
       "/api/v1/me",
       "/api/v1/records",
-      "/api/v1/body-weights",
+      "/api/v1/body-composition",
+      "/api/v1/body-composition/stats",
       "/api/v1/exercises",
       "/api/v1/stats",
     ];
     if (!allowed.includes(path)) throw new ExternalError("not_found", "API not found", 404);
     const queryKeys =
-      path === "/api/v1/records"
+      path === "/api/v1/records" || path === "/api/v1/body-composition"
         ? ["date", "from", "to"]
         : path === "/api/v1/stats"
           ? ["exerciseId", "from", "to"]
-          : path === "/api/v1/body-weights"
+          : path === "/api/v1/body-composition/stats"
             ? ["from", "to"]
             : [];
     if ([...url.searchParams.keys()].some((key) => !queryKeys.includes(key)))
@@ -88,50 +97,37 @@ export async function handleExternalApi(request, env, url, path) {
     if (path === "/api/v1/stats") {
       const rawId = url.searchParams.get("exerciseId");
       const exerciseId = Number(rawId);
-      const from = url.searchParams.get("from");
-      const to = url.searchParams.get("to");
+      const { from, to } = requirePeriod(url);
       if (!/^\d+$/.test(rawId ?? "") || !Number.isSafeInteger(exerciseId) || exerciseId < 1)
         throw new ApiError("exerciseIdは正の整数を指定してください");
-      if (
-        !realDate(from) ||
-        !realDate(to) ||
-        from > to ||
-        (Date.parse(to) - Date.parse(from)) / 86400000 >= 366
-      )
-        throw new ApiError("from/toは両端を含む366日以内の実在する日付を指定してください");
-      return privateJson(await readChartData(env, user.userId, exerciseId, from, to));
+      return privateJson({ exercise: await readExerciseStats(env, user.userId, exerciseId, from, to) });
     }
-    if (path === "/api/v1/records") {
+    if (path === "/api/v1/body-composition/stats") {
+      const { from, to } = requirePeriod(url);
+      return privateJson({ bodyComposition: await readBodyCompositionPoints(env, user.userId, from, to) });
+    }
+    if (path === "/api/v1/records" || path === "/api/v1/body-composition") {
+      const composition = path === "/api/v1/body-composition";
       const date = url.searchParams.get("date");
       if (url.searchParams.has("date")) {
         if (url.searchParams.has("from") || url.searchParams.has("to"))
           throw new ApiError("dateとfrom/toは同時に指定できません");
         if (!realDate(date)) throw new ApiError("dateはYYYY-MM-DD形式の実在する日付を指定してください");
-        return privateJson({ date, records: await readExternalRecordDay(env, user.userId, date) });
-      }
-      const from = url.searchParams.get("from");
-      const to = url.searchParams.get("to");
-      if (
-        !realDate(from) ||
-        !realDate(to) ||
-        from > to ||
-        (Date.parse(to) - Date.parse(from)) / 86400000 >= 366
-      )
-        throw new ApiError(
-          "dateまたはfrom/toを指定してください。from/toは両端を含む366日以内の実在する日付にしてください",
+        return privateJson(
+          composition
+            ? (await readExternalBodyCompositionDays(env, user.userId, date, date))[0]
+            : { date, records: await readExternalRecordDay(env, user.userId, date) },
         );
-      return privateJson({ from, to, days: await readExternalRecordDays(env, user.userId, from, to) });
+      }
+      const { from, to } = requirePeriod(url);
+      const days = await (composition ? readExternalBodyCompositionDays : readExternalRecordDays)(
+        env,
+        user.userId,
+        from,
+        to,
+      );
+      return privateJson({ from, to, days });
     }
-    const from = url.searchParams.get("from");
-    const to = url.searchParams.get("to");
-    if (
-      !realDate(from) ||
-      !realDate(to) ||
-      from > to ||
-      (Date.parse(to) - Date.parse(from)) / 86400000 >= 366
-    )
-      throw new ApiError("from/toは両端を含む366日以内の実在する日付を指定してください");
-    return privateJson({ bodyWeights: await readBodyWeights(env, user.userId, from, to) });
   } catch (error) {
     const known = error instanceof ExternalError || error instanceof ApiError;
     const status = known ? error.status : 500;

@@ -54,7 +54,7 @@ export default function ConnectionsPage({ notify }: { notify: (notice: Notice) =
             <li key={connection.id}>
               <div>
                 <h2>{connection.name}</h2>
-                <p>筋トレ・有酸素の記録、体重、種目一覧と重量アップ候補設定の読み取り</p>
+                <p>筋トレ・有酸素と体組成の記録・推移、種目一覧と重量アップ候補設定の読み取り</p>
                 <p>有効期限：{dateLabel(connection.expiresAt)}</p>
               </div>
               <button className="secondary danger" disabled={busy} onClick={() => disconnect(connection)}>

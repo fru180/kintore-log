@@ -2,6 +2,7 @@ import { handleAuth } from "./auth.js";
 import { handleExercises } from "./exercises.js";
 import { ApiError, fail, json } from "./http.js";
 import { handleWorkouts } from "./workouts.js";
+import { handleBodyComposition } from "./body-composition.js";
 import { cleanupOAuth, handleOAuth } from "./oauth.js";
 import { handleOAuthManagement } from "./oauth-management.js";
 import { handleExternalApi } from "./external-api.js";
@@ -31,7 +32,8 @@ async function route(request, env) {
     (await handleOAuthManagement(request, env, path, method)) ??
     (await handleAuth(request, env, path, method)) ??
     (await handleExercises(request, env, path, method)) ??
-    (await handleWorkouts(request, env, url, path, method));
+    (await handleWorkouts(request, env, url, path, method)) ??
+    (await handleBodyComposition(request, env, url, path, method));
 
   if (response) return response;
   throw new ApiError("APIが見つかりません", 404);

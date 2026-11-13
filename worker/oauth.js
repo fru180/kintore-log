@@ -145,7 +145,7 @@ async function consentPage(request, env, rawRequest) {
     <title>外部連携の許可 | 筋トレログ</title>${styleLinks}</head><body class="oauth-consent-page">
     <main><h1>外部連携の許可</h1><p><strong>${htmlEscape(user.accountName)}</strong> としてログイン中です。</p>
     <p><strong>${htmlEscape(row.name)}</strong> に、あなたの次の情報の読み取りを許可しますか？</p>
-    <ul><li>筋トレ・有酸素運動の日別記録</li><li>体重の記録</li><li>種目一覧と重量アップ候補設定</li></ul>
+    <ul><li>筋トレ・有酸素運動の日別記録と推移</li><li>体組成の記録と推移（体重・身長・BMI・体脂肪率・筋肉量・内臓脂肪レベル・基礎代謝量）</li><li>種目一覧と重量アップ候補設定</li></ul>
     <form method="post" action="${htmlEscape(issuer(env))}/oauth/authorize">
     <input type="hidden" name="request" value="${htmlEscape(rawRequest)}"><input type="hidden" name="csrf" value="${htmlEscape(csrf)}">
     <button class="primary" name="decision" value="allow">許可する</button><button class="secondary" name="decision" value="deny">拒否する</button></form>

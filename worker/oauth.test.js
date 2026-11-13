@@ -45,6 +45,16 @@ function d1Adapter(database) {
   };
 }
 
+const emptyBodyComposition = {
+  weightKg: null,
+  heightCm: null,
+  bmi: null,
+  bodyFatPercent: null,
+  muscleMassKg: null,
+  visceralFatLevel: null,
+  basalMetabolismKcal: null,
+};
+
 describe("OAuth and external read APIs", () => {
   let database;
   let env;
@@ -427,10 +437,12 @@ describe("OAuth and external read APIs", () => {
     expect(
       (await (await api(b.access_token)).json()).records.filter((r) => r.recorded).map((r) => r.weightKg),
     ).toEqual([999]);
-    const weightsA = await (await api(a.access_token, "/body-weights?from=2026-10-01&to=2026-10-31")).json();
-    expect(weightsA.bodyWeights).toEqual([
-      { date: "2026-10-01", weightKg: 60 },
-      { date: "2026-10-02", weightKg: 61 },
+    const compositionA = await (
+      await api(a.access_token, "/body-composition/stats?from=2026-10-01&to=2026-10-31")
+    ).json();
+    expect(compositionA.bodyComposition).toEqual([
+      { date: "2026-10-01", ...emptyBodyComposition, weightKg: 60 },
+      { date: "2026-10-02", ...emptyBodyComposition, weightKg: 61 },
     ]);
     for (const [token, readyId] of [
       [a.access_token, 1],
@@ -457,34 +469,176 @@ describe("OAuth and external read APIs", () => {
     "from=2026-10-01&to=2026-10-31&userId=2",
     "from=2026-10-01&from=2026-10-02&to=2026-10-31",
   ])("rejects invalid or owner-changing queries: %s", async (query) => {
-    expect((await api((await tokens()).access_token, `/body-weights?${query}`)).status).toBe(400);
+    expect((await api((await tokens()).access_token, `/body-composition?${query}`)).status).toBe(400);
   });
 
-  it("returns the entire body-weight period without a cursor key or pagination, limited to its owner", async () => {
+  it("returns all 366 body-composition day groups without pagination, including empty days", async () => {
     const a = await tokens(1);
     const b = await tokens(2);
-    // Insert 366 days out of order, exceeding both former page-size limits.
     database.exec(`WITH RECURSIVE days(date) AS (
       SELECT '2024-01-01' UNION ALL SELECT date(date, '+1 day') FROM days WHERE date < '2024-12-31'
     ) INSERT INTO body_weights(user_id, measured_date, weight_kg)
       SELECT 1, date, 65 FROM days ORDER BY date DESC`);
-    const query = "/body-weights?from=2024-01-01&to=2024-12-31";
+    const query = "/body-composition?from=2024-01-01&to=2024-12-31";
     const response = await api(a.access_token, query, { user: 2 });
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     const data = await response.json();
     expect(data).not.toHaveProperty("nextCursor");
-    expect(data.bodyWeights).toHaveLength(366);
-    expect(data.bodyWeights[0]).toEqual({ date: "2024-01-01", weightKg: 65 });
-    expect(data.bodyWeights.at(-1)).toEqual({ date: "2024-12-31", weightKg: 65 });
-    expect(data.bodyWeights.map((w) => w.date)).toEqual(data.bodyWeights.map((w) => w.date).toSorted());
-    expect(data.bodyWeights.every((w) => Object.keys(w).length === 2)).toBe(true);
-    expect(await (await api(b.access_token, query)).json()).toEqual({ bodyWeights: [] });
-    expect(await (await api(a.access_token, "/body-weights?from=2026-10-01&to=2026-10-01")).json()).toEqual({
-      bodyWeights: [{ date: "2026-10-01", weightKg: 60 }],
+    expect(data.days).toHaveLength(366);
+    expect(data.days[0]).toEqual({
+      date: "2024-01-01",
+      bodyComposition: { ...emptyBodyComposition, weightKg: 65 },
+    });
+    expect(data.days.at(-1)).toEqual({
+      date: "2024-12-31",
+      bodyComposition: { ...emptyBodyComposition, weightKg: 65 },
+    });
+    expect(data.days.map((d) => d.date)).toEqual(data.days.map((d) => d.date).toSorted());
+    const other = await (await api(b.access_token, query)).json();
+    expect(other.days).toHaveLength(366);
+    expect(other.days.every((d) => Object.values(d.bodyComposition).every((v) => v === null))).toBe(true);
+    expect(
+      await (await api(a.access_token, "/body-composition?from=2026-10-01&to=2026-10-01")).json(),
+    ).toEqual({
+      from: "2026-10-01",
+      to: "2026-10-01",
+      days: [{ date: "2026-10-01", bodyComposition: { ...emptyBodyComposition, weightKg: 60 } }],
     });
     for (const extra of ["limit=1", "cursor=old-cursor"])
       expect((await api(a.access_token, `${query}&${extra}`)).status).toBe(400);
+    expect((await api(a.access_token, "/body-weights?from=2026-10-01&to=2026-10-31")).status).toBe(404);
+  });
+
+  it("returns all seven body-composition fields per day, including partial and empty days", async () => {
+    database.exec(`INSERT INTO body_composition_records(user_id, measured_date, metric, value) VALUES
+      (1, '2026-10-01', 'heightCm', 170), (1, '2026-10-01', 'bodyFatPercent', 0),
+      (1, '2026-10-01', 'muscleMassKg', 40.5), (1, '2026-10-01', 'visceralFatLevel', 3.5),
+      (1, '2026-10-01', 'basalMetabolismKcal', 1500), (1, '2026-10-03', 'heightCm', 175),
+      (1, '2026-10-04', 'bodyFatPercent', 20), (2, '2026-10-01', 'heightCm', 180)`);
+    const a = await tokens(1);
+    const b = await tokens(2);
+    const full = {
+      weightKg: 60,
+      heightCm: 170,
+      bmi: 20.8,
+      bodyFatPercent: 0,
+      muscleMassKg: 40.5,
+      visceralFatLevel: 3.5,
+      basalMetabolismKcal: 1500,
+    };
+    const day = await (await api(a.access_token, "/body-composition?date=2026-10-01", { user: 2 })).json();
+    expect(day).toEqual({ date: "2026-10-01", bodyComposition: full });
+    expect(day).not.toHaveProperty("latestValues");
+    const range = await (await api(a.access_token, "/body-composition?from=2026-10-01&to=2026-10-05")).json();
+    expect(range).toEqual({
+      from: "2026-10-01",
+      to: "2026-10-05",
+      days: [
+        day,
+        { date: "2026-10-02", bodyComposition: { ...emptyBodyComposition, weightKg: 61, bmi: 21.1 } },
+        { date: "2026-10-03", bodyComposition: { ...emptyBodyComposition, heightCm: 175, bmi: 19.9 } },
+        { date: "2026-10-04", bodyComposition: { ...emptyBodyComposition, bodyFatPercent: 20 } },
+        { date: "2026-10-05", bodyComposition: emptyBodyComposition },
+      ],
+    });
+    const points = await (
+      await api(a.access_token, "/body-composition/stats?from=2026-10-01&to=2026-10-05", { user: 2 })
+    ).json();
+    expect(points).toEqual({
+      bodyComposition: range.days
+        .slice(0, 4)
+        .map(({ date, bodyComposition }) => ({ date, ...bodyComposition })),
+    });
+    for (const metric of Object.keys(emptyBodyComposition)) {
+      const internal = await (
+        await call(`/api/body-composition/stats?metric=${metric}&from=2026-10-01&to=2026-10-05`, { user: 1 })
+      ).json();
+      expect(
+        points.bodyComposition
+          .filter((p) => p[metric] !== null)
+          .map((p) => ({ date: p.date, value: p[metric] })),
+      ).toEqual(internal.points);
+    }
+    const other = await (await api(b.access_token, "/body-composition?date=2026-10-01")).json();
+    expect(other).toEqual({
+      date: "2026-10-01",
+      bodyComposition: { ...emptyBodyComposition, weightKg: 100, heightCm: 180, bmi: 30.9 },
+    });
+    const schema = JSON.parse(
+      readFileSync(new URL("../docs/external-api.openapi.json", import.meta.url), "utf8"),
+    );
+    expect(Object.keys(day.bodyComposition).sort()).toEqual(
+      schema.components.schemas.BodyComposition.required.toSorted(),
+    );
+    expect(
+      await (await api(a.access_token, "/body-composition/stats?from=2020-01-01&to=2020-01-01")).json(),
+    ).toEqual({ bodyComposition: [] });
+  });
+
+  it("recalculates external BMI from prior history, never from future inputs or input defaults", async () => {
+    database.exec(`INSERT INTO body_composition_records(user_id, measured_date, metric, value) VALUES
+      (1, '2026-09-01', 'heightCm', 170), (1, '2026-11-01', 'heightCm', 180)`);
+    const token = (await tokens()).access_token;
+    const path = "/body-composition/stats?from=2026-10-01&to=2026-10-02";
+    let points = (await (await api(token, path)).json()).bodyComposition;
+    expect(points.map((p) => p.bmi)).toEqual([20.8, 21.1]);
+    expect(points.every((p) => p.heightCm === null)).toBe(true);
+    database.exec(
+      "UPDATE body_composition_records SET value = 175 WHERE user_id = 1 AND measured_date = '2026-09-01'",
+    );
+    points = (await (await api(token, path)).json()).bodyComposition;
+    expect(points.map((p) => p.bmi)).toEqual([19.6, 19.9]);
+    database.exec("DELETE FROM body_composition_records WHERE user_id = 1 AND measured_date = '2026-09-01'");
+    points = (await (await api(token, path)).json()).bodyComposition;
+    expect(points.map((p) => p.bmi)).toEqual([null, null]);
+    expect((await (await api(token, "/body-composition?date=2026-10-03")).json()).bodyComposition).toEqual(
+      emptyBodyComposition,
+    );
+    const leap = await (await api(token, "/body-composition?from=2024-02-28&to=2024-03-01")).json();
+    expect(leap.days.map((d) => d.date)).toEqual(["2024-02-28", "2024-02-29", "2024-03-01"]);
+    database.exec(
+      "DELETE FROM workout_records; DELETE FROM exercise_weight_increase_marks; DELETE FROM exercises",
+    );
+    expect((await (await api(token, path)).json()).bodyComposition).toEqual(points);
+  });
+
+  it.each([
+    "",
+    "from=2026-10-01",
+    "to=2026-10-31",
+    "from=2026-02-30&to=2026-03-01",
+    "from=2026-10-02&to=2026-10-01",
+    "from=2024-01-01&to=2025-01-01",
+    "from=2026-10-01&to=2026-10-31&metric=weightKg",
+    "from=2026-10-01&to=2026-10-31&exerciseId=1",
+    "from=2026-10-01&to=2026-10-31&date=2026-10-01",
+    "from=2026-10-01&to=2026-10-31&userId=2",
+    "from=2026-10-01&to=2026-10-31&user_id=2",
+    "from=2026-10-01&from=2026-10-02&to=2026-10-31",
+    "from=2026-10-01&to=2026-10-31&limit=1",
+    "from=2026-10-01&to=2026-10-31&cursor=old",
+  ])("rejects invalid body-composition trend queries: %s", async (query) => {
+    expect((await api((await tokens()).access_token, `/body-composition/stats?${query}`)).status).toBe(400);
+  });
+
+  it("keeps external body-composition endpoints Bearer-only, read-only and scoped", async () => {
+    const token = (await tokens()).access_token;
+    for (const path of [
+      "/body-composition?date=2026-10-01",
+      "/body-composition/stats?from=2026-10-01&to=2026-10-02",
+    ]) {
+      const response = await api(token, path);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect((await call(`/api/v1${path}`, { user: 1 })).status).toBe(401);
+      expect((await api("invalid", path)).status).toBe(401);
+      for (const method of ["POST", "PATCH", "DELETE", "PUT"])
+        expect((await api(token, path, { method })).status).toBe(405);
+    }
+    database.exec("UPDATE oauth_grants SET scope='other:read'");
+    expect((await api(token, "/body-composition?date=2026-10-01")).status).toBe(403);
+    expect((await api(token, "/body-composition/stats?from=2026-10-01&to=2026-10-02")).status).toBe(403);
   });
 
   it("returns every exercise for one day and distinguishes zero-weight records from missing records", async () => {
@@ -608,10 +762,13 @@ describe("OAuth and external read APIs", () => {
     "from=2026-10-01&to=2026-10-31&user_id=2",
     "from=2026-10-01&to=2026-10-31&userId=2",
   ])("rejects invalid daily record queries: %s", async (query) => {
-    expect((await api((await tokens()).access_token, `/records?${query}`)).status).toBe(400);
+    const token = (await tokens()).access_token;
+    for (const path of ["/records", "/body-composition"]) {
+      expect((await api(token, `${path}?${query}`)).status).toBe(400);
+    }
   });
 
-  it("returns the same exercise and body-weight series as the app's charts, scoped to the bearer owner", async () => {
+  it("returns only exercise series, matching the app charts and scoped to the bearer owner", async () => {
     const a = await tokens(1);
     const b = await tokens(2);
     const query = "?exerciseId=1&from=2026-10-01&to=2026-10-31";
@@ -619,22 +776,19 @@ describe("OAuth and external read APIs", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     const data = await response.json();
-    expect(data).toEqual(await (await call(`/api/stats${query}`, { user: 1 })).json());
+    expect(data.exercise).toEqual((await (await call(`/api/stats${query}`, { user: 1 })).json()).exercise);
+    expect(data).not.toHaveProperty("bodyWeights");
+    expect(data).not.toHaveProperty("bodyComposition");
     expect(data).toEqual({
       exercise: [
         { date: "2026-10-01", weightKg: -10, reps: 10, sets: 3, distanceKm: null, durationMinutes: null },
         { date: "2026-10-31", weightKg: 60, reps: 6, sets: 4, distanceKm: null, durationMinutes: null },
-      ],
-      bodyWeights: [
-        { date: "2026-10-01", weightKg: 60 },
-        { date: "2026-10-02", weightKg: 61 },
       ],
     });
     expect(await (await api(b.access_token, `/stats${query}`)).json()).toEqual({
       exercise: [
         { date: "2026-10-01", weightKg: 999, reps: 99, sets: 9, distanceKm: null, durationMinutes: null },
       ],
-      bodyWeights: [{ date: "2026-10-01", weightKg: 100 }],
     });
     const zero = await (
       await api(a.access_token, "/stats?exerciseId=2&from=2026-10-01&to=2026-10-01")
@@ -651,10 +805,10 @@ describe("OAuth and external read APIs", () => {
     const missing = await (
       await api(a.access_token, "/stats?exerciseId=999999&from=2026-10-01&to=2026-10-31")
     ).json();
-    expect(missing).toEqual({ exercise: [], bodyWeights: data.bodyWeights });
+    expect(missing).toEqual({ exercise: [] });
     expect(
       await (await api(a.access_token, "/stats?exerciseId=1&from=2020-01-01&to=2020-01-31")).json(),
-    ).toEqual({ exercise: [], bodyWeights: [] });
+    ).toEqual({ exercise: [] });
     expect((await api(a.access_token, "/stats?exerciseId=1&from=2024-01-01&to=2024-12-31")).status).toBe(200);
     expect((await call(`/api/v1/stats${query}`, { user: 1 })).status).toBe(401);
     expect((await api(a.access_token, `/stats${query}`, { method: "POST" })).status).toBe(405);

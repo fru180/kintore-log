@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { BarChart3, Dumbbell, LogOut, Timer as TimerIcon, UserRound } from "lucide-react";
+import { BarChart3, Dumbbell, LogOut, Timer as TimerIcon, UserRound, Weight } from "lucide-react";
 import AdminPage from "./AdminPage";
 import { api, post } from "./api";
 import AuthScreen from "./AuthScreen";
 import ChartsPage from "./ChartsPage";
+import BodyCompositionPage from "./BodyCompositionPage";
 import ExportPage from "./ExportPage";
 import ConnectionsPage from "./ConnectionsPage";
 import RecordPage from "./RecordPage";
@@ -12,7 +13,7 @@ import TimerModal from "./TimerModal";
 import { toLocalDate } from "./date";
 import type { Exercise, Notice, User } from "./types";
 
-type Tab = "record" | "charts" | "admin" | "export" | "connections";
+type Tab = "record" | "body" | "charts" | "admin" | "export" | "connections";
 
 function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -76,14 +77,15 @@ function App() {
   if (oauthRequest) return <main className="loading-screen">連携の確認画面に移動しています…</main>;
 
   const navItems: { id: Tab; label: string; icon: typeof Dumbbell }[] = [
-    { id: "record", label: "記録", icon: Dumbbell },
+    { id: "record", label: "筋トレ", icon: Dumbbell },
+    { id: "body", label: "体組成", icon: Weight },
     { id: "charts", label: "推移", icon: BarChart3 },
   ];
 
   return (
     <div className="app-shell">
       <header className="topbar">
-        <button className="brand" onClick={() => setTab("record")} aria-label="記録画面へ">
+        <button className="brand" onClick={() => setTab("record")} aria-label="筋トレ画面へ">
           <span className="brand-mark">
             <Dumbbell />
           </span>
@@ -124,6 +126,9 @@ function App() {
             onExerciseReadinessChange={updateExerciseReadiness}
             notify={setNotice}
           />
+        )}
+        {tab === "body" && (
+          <BodyCompositionPage key={date} date={date} setDate={setDate} notify={setNotice} />
         )}
         {tab === "charts" && <ChartsPage exercises={exercises} notify={setNotice} />}
         {tab === "export" && <ExportPage />}

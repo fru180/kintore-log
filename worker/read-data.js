@@ -25,7 +25,7 @@ export async function readRecordDay(env, userId, date) {
   return results;
 }
 
-export async function readChartData(env, userId, exerciseId, from, to) {
+export async function readExerciseStats(env, userId, exerciseId, from, to) {
   let exercise = [];
   if (Number.isInteger(exerciseId) && exerciseId > 0) {
     const { results } = await env.DB.prepare(
@@ -39,7 +39,15 @@ export async function readChartData(env, userId, exerciseId, from, to) {
       .all();
     exercise = results;
   }
-  return { exercise, bodyWeights: await readBodyWeights(env, userId, from, to) };
+  return exercise;
+}
+
+export async function readChartData(env, userId, exerciseId, from, to) {
+  const [exercise, bodyWeights] = await Promise.all([
+    readExerciseStats(env, userId, exerciseId, from, to),
+    readBodyWeights(env, userId, from, to),
+  ]);
+  return { exercise, bodyWeights };
 }
 
 export async function readExternalRecordDay(env, userId, date) {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { BarChart3, Dumbbell, Weight } from "lucide-react";
 import { api } from "./api";
+import { bodyMetrics, type BodyMetric, type BodyCompositionPoint } from "./bodyComposition";
 import { calculateChartScale, calculateIntegerTicks } from "./chartScale";
 import { datePosition, daysBetween, shiftDay, toLocalDate } from "./date";
 import type { Exercise, Notice, StatPoint } from "./types";
@@ -14,7 +15,10 @@ export default function ChartsPage({
 }) {
   const [exerciseId, setExerciseId] = useState(0);
   const [exerciseStats, setExerciseStats] = useState<StatPoint[]>([]);
-  const [bodyWeights, setBodyWeights] = useState<StatPoint[]>([]);
+  const [bodyMetric, setBodyMetric] = useState<BodyMetric>("weightKg");
+  const [bodyPoints, setBodyPoints] = useState<BodyCompositionPoint[]>([]);
+  const [bodyStatus, setBodyStatus] = useState<"loading" | "ready" | "error">("loading");
+  const selectedBodyMetric = bodyMetrics.find((metric) => metric.id === bodyMetric)!;
   const selectedExercise = exercises.find((exercise) => exercise.id === exerciseId);
   const periodEnd = toLocalDate();
   const periodStart = shiftDay(periodEnd, -89);
@@ -24,20 +28,50 @@ export default function ChartsPage({
   }, [exerciseId, exercises]);
   useEffect(() => {
     if (!exerciseId) return;
+    let active = true;
+    setExerciseStats([]);
     api<{ exercise: StatPoint[]; bodyWeights: StatPoint[] }>(
       `/api/stats?exerciseId=${exerciseId}&from=${periodStart}&to=${periodEnd}`,
     )
       .then((data) => {
-        setExerciseStats(data.exercise);
-        setBodyWeights(data.bodyWeights);
+        if (active) setExerciseStats(data.exercise);
       })
-      .catch((e) => notify({ message: e.message, kind: "error" }));
+      .catch((e) => {
+        if (active) notify({ message: e.message, kind: "error" });
+      });
+    return () => {
+      active = false;
+    };
   }, [exerciseId, notify, periodStart, periodEnd]);
+
+  useEffect(() => {
+    let active = true;
+    setBodyStatus("loading");
+    setBodyPoints([]);
+    api<{ points: BodyCompositionPoint[] }>(
+      `/api/body-composition/stats?metric=${bodyMetric}&from=${periodStart}&to=${periodEnd}`,
+    )
+      .then((data) => {
+        if (active) {
+          setBodyPoints(data.points);
+          setBodyStatus("ready");
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setBodyStatus("error");
+          notify({ message: error.message, kind: "error" });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [bodyMetric, notify, periodStart, periodEnd]);
 
   const exerciseValues = exerciseStats.map((point) =>
     selectedExercise?.kind === "cardio" ? point.distanceKm || 0 : point.weightKg || 0,
   );
-  const weightValues = bodyWeights.map((point) => point.weightKg || 0);
+  const bodyValues = bodyPoints.map((point) => point.value);
   return (
     <section>
       <div className="chart-grid">
@@ -51,7 +85,11 @@ export default function ChartsPage({
                 <h2>種目別の推移</h2>
               </div>
             </div>
-            <select value={exerciseId} onChange={(e) => setExerciseId(Number(e.target.value))}>
+            <select
+              aria-label="筋トレ種目"
+              value={exerciseId}
+              onChange={(e) => setExerciseId(Number(e.target.value))}
+            >
               {exercises.map((exercise) => (
                 <option value={exercise.id} key={exercise.id}>
                   {exercise.name}
@@ -60,6 +98,7 @@ export default function ChartsPage({
             </select>
           </div>
           <LineChart
+            key={`exercise-${exerciseId}`}
             points={exerciseStats}
             values={exerciseValues}
             unit={selectedExercise?.kind === "cardio" ? "km" : "kg"}
@@ -74,17 +113,39 @@ export default function ChartsPage({
                 <Weight />
               </span>
               <div>
-                <h2>体重の推移</h2>
+                <h2>体組成の推移</h2>
               </div>
             </div>
+            <select
+              aria-label="体組成の項目"
+              value={bodyMetric}
+              onChange={(event) => setBodyMetric(event.target.value as BodyMetric)}
+            >
+              {bodyMetrics.map((metric) => (
+                <option key={metric.id} value={metric.id}>
+                  {metric.label}
+                </option>
+              ))}
+            </select>
           </div>
-          <LineChart
-            points={bodyWeights}
-            values={weightValues}
-            unit="kg"
-            minimumPadding={0.1}
-            color="#ff815d"
-          />
+          {bodyStatus === "loading" ? (
+            <div className="chart-empty" role="status">
+              グラフを読み込み中…
+            </div>
+          ) : bodyStatus === "error" ? (
+            <div className="chart-empty" role="alert">
+              グラフを取得できませんでした
+            </div>
+          ) : (
+            <LineChart
+              key={bodyMetric}
+              points={bodyPoints}
+              values={bodyValues}
+              unit={selectedBodyMetric.unit}
+              minimumPadding={0.1}
+              color="#ff815d"
+            />
+          )}
         </article>
       </div>
     </section>
@@ -98,7 +159,7 @@ function LineChart({
   minimumPadding,
   color,
 }: {
-  points: StatPoint[];
+  points: { date: string }[];
   values: number[];
   unit: string;
   minimumPadding: number;
@@ -121,7 +182,12 @@ function LineChart({
   const { min, max, range } = calculateChartScale(values, minimumPadding);
   const yTicks = calculateIntegerTicks(min, max);
   const selectedIndex = selectedDate ? points.findIndex((point) => point.date === selectedDate) : -1;
-  const activeIndex = hoveredIndex ?? (selectedIndex >= 0 ? selectedIndex : null);
+  const activeIndex =
+    hoveredIndex !== null && hoveredIndex < points.length
+      ? hoveredIndex
+      : selectedIndex >= 0
+        ? selectedIndex
+        : null;
   const formatValue = (value: number) => Number(value.toFixed(1)).toString();
   const firstDate = points[0].date;
   const lastDate = points.at(-1)?.date ?? firstDate;

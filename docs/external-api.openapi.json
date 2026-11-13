@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "筋トレログ 外部読み取りAPI",
-    "version": "1.0.0",
-    "description": "OAuth Authorization Code + PKCE S256必須。取得は本人の記録に限定。距離はkm、時間は分、重量はkg。"
+    "version": "2.0.0",
+    "description": "OAuth Authorization Code + PKCE S256必須。取得は本人の記録に限定。筋トレ・有酸素の推移と体組成の推移は別API。体重kg、身長cm、体脂肪率%、筋肉量kg、基礎代謝量kcal/日。旧 /body-weights は廃止。/stats は運動推移のみ返す。"
   },
   "servers": [
     {
@@ -12,7 +12,9 @@
   ],
   "security": [
     {
-      "oauth": ["workouts:read"]
+      "oauth": [
+        "workouts:read"
+      ]
     }
   ],
   "paths": {
@@ -27,11 +29,16 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["user"],
+                  "required": [
+                    "user"
+                  ],
                   "properties": {
                     "user": {
                       "type": "object",
-                      "required": ["id", "accountName"],
+                      "required": [
+                        "id",
+                        "accountName"
+                      ],
                       "properties": {
                         "id": {
                           "type": "integer"
@@ -134,67 +141,6 @@
         }
       }
     },
-    "/body-weights": {
-      "get": {
-        "operationId": "listBodyWeights",
-        "summary": "本人の日別体重",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/From"
-          },
-          {
-            "$ref": "#/components/parameters/To"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "期間内の本人の体重を全件返す。記録がなければ空配列。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": ["bodyWeights"],
-                  "properties": {
-                    "bodyWeights": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "required": ["date", "weightKg"],
-                        "properties": {
-                          "date": {
-                            "type": "string",
-                            "format": "date"
-                          },
-                          "weightKg": {
-                            "type": "number"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error"
-          },
-          "503": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "description": "from/toの両端を含む最大366日。本人の保存済み体重を日付昇順で全件返す。未記録の日は省略。ページングなし。limit/cursorは受け付けず、カーソル署名キーの設定は不要。"
-      }
-    },
     "/exercises": {
       "get": {
         "operationId": "listExercises",
@@ -206,7 +152,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["exercises"],
+                  "required": [
+                    "exercises"
+                  ],
                   "properties": {
                     "exercises": {
                       "type": "array",
@@ -237,8 +185,8 @@
     "/stats": {
       "get": {
         "operationId": "getExerciseStats",
-        "summary": "指定種目の記録推移と体重推移",
-        "description": "exerciseIdとfrom/toが必須。両端を含む最大366日。本人の保存済み記録だけを日付昇順で全件返す。未記録の日は省略し、0kg・補助重量の負値はそのまま返す。有酸素はdistanceKmとdurationMinutesを返す。存在しない種目・記録がない種目のexerciseは空配列（体重は種目にかかわらず返す）。ページングなし。画面のグラフは同じ形式の直近90日データを使用する。",
+        "summary": "指定種目の筋トレ・有酸素運動の推移",
+        "description": "exerciseIdとfrom/toが必須。両端を含む最大366日。本人の指定種目の保存済み記録だけを日付昇順で全件返す。未記録の日は省略。0kgと補助重量の負値はそのまま返す。有酸素はdistanceKmとdurationMinutesを返す。存在しない種目・記録がない種目のexerciseは空配列。体組成は含めず、/body-composition/statsで別途取得する。ページングなし。",
         "parameters": [
           {
             "name": "exerciseId",
@@ -275,39 +223,151 @@
             "$ref": "#/components/responses/Error"
           },
           "200": {
-            "description": "既存のグラフ用 /api/stats と同形式。指定種目と同期間の本人の体重。",
+            "description": "指定種目の推移のみ。bodyWeightsは廃止。",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["exercise", "bodyWeights"],
+                  "required": [
+                    "exercise"
+                  ],
                   "properties": {
                     "exercise": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/ExerciseStatPoint"
                       }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/body-composition": {
+      "get": {
+        "operationId": "getBodyComposition",
+        "summary": "指定日または期間内の体組成全7項目を日付単位で取得",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "YYYY-MM-DD形式の実在する日付。date単独、またはfrom/toのペアが必須。同時指定不可。",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "期間の開始日（含む）。toも必須。dateとの併用不可。両端を含め最大366日。",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "期間の終了日（含む）。fromも必須。from以上の日付。dateとの併用不可。",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "date指定はBodyCompositionDay、期間指定はBodyCompositionRange。未記録日も全7項目を返す。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/BodyCompositionDay"
                     },
-                    "bodyWeights": {
+                    {
+                      "$ref": "#/components/schemas/BodyCompositionRange"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "description": "date単独、またはfrom/toのペアを指定。併用不可。期間指定は両端を含む最大366日。全日を昇順のdaysに含め、未記録項目はnull。日付ごとに体組成全7項目をまとめて返す。入力欄用の初期値は含めない。BMIは体重または身長の記録日に当日以前の最新保存値で計算し、小数第1位まで返す。両方がそろわなければnull。ページングなし。"
+      }
+    },
+    "/body-composition/stats": {
+      "get": {
+        "operationId": "getBodyCompositionStats",
+        "summary": "体組成全7項目の推移を取得",
+        "description": "from/to必須、両端を含む最大366日。本人の記録がある日のみを日付昇順で返す。各点はdateと全7項目を持ち、当日にない値はnull。BMIのみ当日以前の最新の体重・身長で計算する（期間開始前の記録も参照）。体重または身長の記録日だけ計算し、両方がそろわなければnull。過去記録の更新・削除も計算に反映する。種目ID・項目選択不要。ページングなし。",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "記録日の全7項目。記録がなければbodyCompositionは空配列。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "bodyComposition"
+                  ],
+                  "properties": {
+                    "bodyComposition": {
                       "type": "array",
                       "items": {
-                        "type": "object",
-                        "required": ["date", "weightKg"],
-                        "properties": {
-                          "date": {
-                            "type": "string",
-                            "format": "date"
-                          },
-                          "weightKg": {
-                            "type": "number"
-                          }
-                        }
+                        "$ref": "#/components/schemas/BodyCompositionStatPoint"
                       }
                     }
                   }
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -359,11 +419,16 @@
           "application/json": {
             "schema": {
               "type": "object",
-              "required": ["error"],
+              "required": [
+                "error"
+              ],
               "properties": {
                 "error": {
                   "type": "object",
-                  "required": ["code", "message"],
+                  "required": [
+                    "code",
+                    "message"
+                  ],
                   "properties": {
                     "code": {
                       "type": "string"
@@ -397,7 +462,10 @@
         ],
         "properties": {
           "id": {
-            "type": ["integer", "null"],
+            "type": [
+              "integer",
+              "null"
+            ],
             "description": "保存済みの記録ID。未記録はnull。"
           },
           "exerciseId": {
@@ -408,22 +476,37 @@
             "format": "date"
           },
           "weightKg": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "kg。補助重量などの負値を含む。"
           },
           "reps": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "sets": {
-            "type": ["integer", "null"],
+            "type": [
+              "integer",
+              "null"
+            ],
             "description": "同一重量・回数として記録されたセット数"
           },
           "distanceKm": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "km"
           },
           "durationMinutes": {
-            "type": ["integer", "null"],
+            "type": [
+              "integer",
+              "null"
+            ],
             "description": "分"
           },
           "name": {
@@ -431,7 +514,10 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["strength", "cardio"]
+            "enum": [
+              "strength",
+              "cardio"
+            ]
           },
           "recorded": {
             "type": "boolean",
@@ -481,7 +567,13 @@
       },
       "Exercise": {
         "type": "object",
-        "required": ["id", "name", "kind", "sortOrder", "readyForWeightIncrease"],
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "sortOrder",
+          "readyForWeightIncrease"
+        ],
         "properties": {
           "id": {
             "type": "integer"
@@ -491,7 +583,10 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["strength", "cardio"]
+            "enum": [
+              "strength",
+              "cardio"
+            ]
           },
           "sortOrder": {
             "type": "integer"
@@ -503,7 +598,10 @@
       },
       "RecordDay": {
         "type": "object",
-        "required": ["date", "records"],
+        "required": [
+          "date",
+          "records"
+        ],
         "properties": {
           "date": {
             "type": "string",
@@ -519,7 +617,11 @@
       },
       "RecordRange": {
         "type": "object",
-        "required": ["from", "to", "days"],
+        "required": [
+          "from",
+          "to",
+          "days"
+        ],
         "properties": {
           "from": {
             "type": "string",
@@ -542,32 +644,179 @@
       },
       "ExerciseStatPoint": {
         "type": "object",
-        "required": ["date", "weightKg", "reps", "sets", "distanceKm", "durationMinutes"],
+        "required": [
+          "date",
+          "weightKg",
+          "reps",
+          "sets",
+          "distanceKm",
+          "durationMinutes"
+        ],
         "properties": {
           "date": {
             "type": "string",
             "format": "date"
           },
           "weightKg": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "kg。補助重量などの負値を含む。"
           },
           "reps": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "sets": {
-            "type": ["integer", "null"],
+            "type": [
+              "integer",
+              "null"
+            ],
             "description": "同一重量・回数として記録されたセット数"
           },
           "distanceKm": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "km"
           },
           "durationMinutes": {
-            "type": ["integer", "null"],
+            "type": [
+              "integer",
+              "null"
+            ],
             "description": "分"
           }
         }
+      },
+      "BodyComposition": {
+        "type": "object",
+        "required": [
+          "weightKg",
+          "heightCm",
+          "bmi",
+          "bodyFatPercent",
+          "muscleMassKg",
+          "visceralFatLevel",
+          "basalMetabolismKcal"
+        ],
+        "properties": {
+          "weightKg": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "体重（kg）。当日の保存値。 未記録・計算不可はnull。"
+          },
+          "heightCm": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "身長（cm）。当日の保存値。 未記録・計算不可はnull。"
+          },
+          "bmi": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "体重kg ÷ (身長cm ÷ 100)²。体重または身長の記録日に、その日以前の最新値から計算した小数第1位までの値。 未記録・計算不可はnull。"
+          },
+          "bodyFatPercent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "体脂肪率（%）。0%も記録値。 未記録・計算不可はnull。"
+          },
+          "muscleMassKg": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "筋肉量（kg）。 未記録・計算不可はnull。"
+          },
+          "visceralFatLevel": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "内臓脂肪レベル。 未記録・計算不可はnull。"
+          },
+          "basalMetabolismKcal": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "基礎代謝量（kcal/日）。 未記録・計算不可はnull。"
+          }
+        }
+      },
+      "BodyCompositionDay": {
+        "type": "object",
+        "required": [
+          "date",
+          "bodyComposition"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "bodyComposition": {
+            "$ref": "#/components/schemas/BodyComposition"
+          }
+        }
+      },
+      "BodyCompositionRange": {
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "days"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "days": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 366,
+            "description": "期間内の全日を昇順で返す。未記録日も全項目nullで含める。",
+            "items": {
+              "$ref": "#/components/schemas/BodyCompositionDay"
+            }
+          }
+        }
+      },
+      "BodyCompositionStatPoint": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BodyComposition"
+          },
+          {
+            "type": "object",
+            "required": [
+              "date"
+            ],
+            "properties": {
+              "date": {
+                "type": "string",
+                "format": "date"
+              }
+            }
+          }
+        ]
       }
     }
   }
