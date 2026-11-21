@@ -12,7 +12,7 @@ import {
 import { api, del, patch, post } from "./api";
 import CalendarPage from "./CalendarPage";
 import Metric from "./MetricInput";
-import { shiftDay } from "./date";
+import { daysBetween, shiftDay } from "./date";
 import { createInitialDraft, defaultDraft, isDraftChanged, isDraftComplete, toDraftValue } from "./draft";
 import { getMusclesForExercise, getTrainedMuscles, type MuscleId } from "./muscles";
 import type { Draft, Exercise, LatestWeight, Notice, WorkoutRecord } from "./types";
@@ -39,6 +39,7 @@ export default function RecordPage({
   notify: (notice: Notice) => void;
 }) {
   const [records, setRecords] = useState<Map<number, WorkoutRecord>>(new Map());
+  const [previousWorkoutDates, setPreviousWorkoutDates] = useState<Map<number, string | null>>(new Map());
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
   const [busyId, setBusyId] = useState<number | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -50,6 +51,7 @@ export default function RecordPage({
     muscles: MuscleId[];
   } | null>(null);
   const loadRequestRef = useRef(0);
+  const currentLoadRef = useRef<(() => Promise<void>) | null>(null);
   const closeExerciseMusclesModal = useCallback(() => setSelectedExercise(null), []);
 
   const load = useCallback(async () => {
@@ -60,6 +62,7 @@ export default function RecordPage({
       const data = await api<{
         records: WorkoutRecord[];
         latestWeights: LatestWeight[];
+        previousWorkoutDates: { exerciseId: number; date: string | null }[];
       }>(`/api/records?date=${date}`);
       if (requestId !== loadRequestRef.current) return;
       const map = new Map(data.records.map((record) => [record.exerciseId, record]));
@@ -74,6 +77,7 @@ export default function RecordPage({
         next[exercise.id] = createInitialDraft(record, latestWeights.get(exercise.id) ?? 0, saved);
       });
       setDrafts(next);
+      setPreviousWorkoutDates(new Map(data.previousWorkoutDates.map((item) => [item.exerciseId, item.date])));
       setRecordsDate(date);
       setRecordsStatus("ready");
     } catch (error) {
@@ -86,7 +90,12 @@ export default function RecordPage({
   }, [date, exercises]);
 
   useEffect(() => {
+    currentLoadRef.current = load;
     load().catch((e) => notify({ message: e.message, kind: "error" }));
+    return () => {
+      currentLoadRef.current = null;
+      loadRequestRef.current += 1;
+    };
   }, [load, notify]);
 
   const changeDraft = (id: number, key: keyof Draft, value: string) => {
@@ -132,6 +141,7 @@ export default function RecordPage({
 
     const values = Object.fromEntries(Object.entries(draft).map(([key, value]) => [key, Number(value)]));
     const isUpdate = currentRecord !== undefined;
+    const requestId = loadRequestRef.current;
     setBusyId(exercise.id);
     try {
       const { record } = await post<{ record: Omit<WorkoutRecord, "name" | "kind"> }>("/api/records", {
@@ -145,9 +155,13 @@ export default function RecordPage({
           ? { reps: values.reps, sets: values.sets }
           : { distanceKm: values.distanceKm, durationMinutes: values.durationMinutes };
       localStorage.setItem(`kintore-default-${exercise.id}`, JSON.stringify(storedDefaults));
-      setRecords((current) =>
-        new Map(current).set(exercise.id, { ...record, name: exercise.name, kind: exercise.kind }),
-      );
+      if (requestId === loadRequestRef.current) {
+        setRecords((current) =>
+          new Map(current).set(exercise.id, { ...record, name: exercise.name, kind: exercise.kind }),
+        );
+      } else {
+        await currentLoadRef.current?.();
+      }
       notify({ message: `${exercise.name}を${isUpdate ? "更新" : "記録"}しました`, kind: "success" });
     } catch (e) {
       notify({ message: e instanceof Error ? e.message : "保存できませんでした", kind: "error" });
@@ -160,7 +174,7 @@ export default function RecordPage({
     setBusyId(exercise.id);
     try {
       await del(`/api/records/${record.id}`);
-      await load();
+      await currentLoadRef.current?.();
       notify({ message: `${exercise.name}の記録を取り消しました`, kind: "success" });
     } catch (e) {
       notify({ message: e instanceof Error ? e.message : "取り消しできませんでした", kind: "error" });
@@ -169,11 +183,11 @@ export default function RecordPage({
     }
   };
 
+  const dayStatus = recordsDate === date ? recordsStatus : "loading";
   const trainedMuscles = useMemo(
-    () => (recordsDate === date && recordsStatus === "ready" ? getTrainedMuscles([...records.values()]) : []),
-    [date, records, recordsDate, recordsStatus],
+    () => (dayStatus === "ready" ? getTrainedMuscles([...records.values()]) : []),
+    [dayStatus, records],
   );
-  const trainedMusclesStatus = recordsDate === date ? recordsStatus : "loading";
 
   return (
     <section>
@@ -220,7 +234,8 @@ export default function RecordPage({
       <div className="exercise-list">
         {exercises.map((exercise) => {
           const draft = drafts[exercise.id] || defaultDraft;
-          const record = records.get(exercise.id);
+          const record = recordsDate === date ? records.get(exercise.id) : undefined;
+          const previousWorkoutDate = previousWorkoutDates.get(exercise.id);
           const exerciseTargetMuscles =
             exercise.kind === "strength" ? getMusclesForExercise(exercise.name) : [];
           const draftComplete = isDraftComplete(draft, exercise.kind);
@@ -262,7 +277,13 @@ export default function RecordPage({
                       <Flame size={18} aria-hidden="true" />
                     </button>
                   )}
-                  {record && <span>記録済み</span>}
+                  {record ? (
+                    <span>記録済み</span>
+                  ) : dayStatus === "ready" ? (
+                    <small className="exercise-previous-workout">
+                      前回：{previousWorkoutDate ? `${daysBetween(previousWorkoutDate, date)}日前` : "-"}
+                    </small>
+                  ) : null}
                 </div>
                 <div className="metrics">
                   {exercise.kind === "strength" ? (
@@ -320,7 +341,9 @@ export default function RecordPage({
               <div className="row-actions">
                 <button
                   className="primary save-button"
-                  disabled={busyId === exercise.id || !draftComplete || !draftChanged}
+                  disabled={
+                    dayStatus === "loading" || busyId === exercise.id || !draftComplete || !draftChanged
+                  }
                   onClick={() => saveRecord(exercise)}
                   aria-label={
                     busyId === exercise.id
@@ -353,7 +376,7 @@ export default function RecordPage({
       </div>
 
       <Suspense fallback={<div className="trained-muscles-loading">3D人体図を準備中…</div>}>
-        <TrainedMusclesCard muscles={trainedMuscles} status={trainedMusclesStatus} />
+        <TrainedMusclesCard muscles={trainedMuscles} status={dayStatus} />
       </Suspense>
 
       {selectedExercise && (

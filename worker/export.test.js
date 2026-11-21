@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { handleWorkouts } from "./workouts.js";
 
-describe("export API", () => {
+describe("workout read APIs", () => {
   let database;
   let env;
   let request;
@@ -81,5 +81,36 @@ describe("export API", () => {
     database.exec("DELETE FROM workout_records WHERE user_id = 1 AND exercise_id != 16");
     const response = await handleWorkouts(request, env, new URL(request.url), "/api/export", "GET");
     expect((await response.json()).records).toEqual([]);
+  });
+
+  it("returns the latest earlier workout date per exercise for the authenticated user", async () => {
+    database.exec(`
+      INSERT INTO workout_records (user_id, exercise_id, workout_date, weight_kg) VALUES
+        (1, 1, '2026-10-23', 80), (1, 1, '2026-10-27', 90), (2, 1, '2026-10-24', 999),
+        (2, 3, '2026-10-24', 999);
+    `);
+    const recordsRequest = new Request("https://example.com/api/records?date=2026-10-25", {
+      headers: request.headers,
+    });
+    const response = await handleWorkouts(
+      recordsRequest,
+      env,
+      new URL(recordsRequest.url),
+      "/api/records",
+      "GET",
+    );
+    const data = await response.json();
+    const previousDates = new Map(
+      data.previousWorkoutDates.map(({ exerciseId, date }) => [exerciseId, date]),
+    );
+
+    expect(previousDates.size).toBe(17);
+    expect(previousDates.get(1)).toBe("2026-10-23");
+    expect(previousDates.get(2)).toBeNull();
+    expect(previousDates.get(3)).toBeNull();
+    expect(previousDates.get(16)).toBe("2026-10-24");
+    expect(data.records.map(({ exerciseId }) => exerciseId)).toEqual([1, 2]);
+    expect(data.latestWeights[0]).toEqual({ exerciseId: 1, weightKg: 90 });
+    expect(data.bodyWeight).toBe(60);
   });
 });

@@ -46,10 +46,24 @@ export async function handleWorkouts(request, env, url, path, method) {
     )
       .bind(user.id)
       .all();
+    const previousWorkoutDates = await env.DB.prepare(
+      `SELECT e.id AS exerciseId, (
+          SELECT r.workout_date
+          FROM workout_records r
+          WHERE r.user_id = ? AND r.exercise_id = e.id AND r.workout_date < ?
+          ORDER BY r.workout_date DESC
+          LIMIT 1
+        ) AS date
+       FROM exercises e
+       ORDER BY e.sort_order, e.id`,
+    )
+      .bind(user.id, date)
+      .all();
     return json({
       records: results,
       bodyWeight: bodyWeight?.weightKg ?? null,
       latestWeights: latestWeights.results,
+      previousWorkoutDates: previousWorkoutDates.results,
     });
   }
 

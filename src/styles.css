@@ -405,6 +405,12 @@ textarea:focus-visible {
   font-size: var(--font-size-detail);
   font-weight: 700;
 }
+.exercise-previous-workout {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: var(--font-size-support);
+  white-space: nowrap;
+}
 .metrics {
   display: flex;
   align-items: flex-end;
